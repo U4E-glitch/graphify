@@ -15,14 +15,26 @@ android {
         applicationId = "com.dheyab.qiyas"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.2"
+        versionCode = 3
+        versionName = "0.1.3"
+    }
+
+    signingConfigs {
+        create("release") {
+            // Personal-use signing key. Env vars allow moving it to CI secrets later
+            // without a build-script change.
+            storeFile = file(System.getenv("QIYAS_KEYSTORE") ?: "$rootDir/keystore/qiyas-release.jks")
+            storePassword = System.getenv("QIYAS_KEYSTORE_PASSWORD") ?: "qiyas-personal-2026"
+            keyAlias = System.getenv("QIYAS_KEY_ALIAS") ?: "qiyas"
+            keyPassword = System.getenv("QIYAS_KEY_PASSWORD") ?: "qiyas-personal-2026"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
