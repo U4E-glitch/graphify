@@ -1,12 +1,19 @@
 package com.dheyab.qiyas.ui.onboarding
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -86,7 +93,40 @@ fun OnboardingScreen(viewModel: OnboardingViewModel = hiltViewModel()) {
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.displaySmall)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 24.dp, bottom = 8.dp),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_logo),
+                contentDescription = null,
+                modifier = Modifier.size(88.dp),
+            )
+            Text(
+                stringResource(R.string.app_name),
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(top = 16.dp),
+            ) {
+                repeat(3) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = if (index == state.step) 22.dp else 8.dp, height = 8.dp)
+                            .clip(MaterialTheme.shapes.large)
+                            .background(
+                                if (index == state.step) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                    )
+                }
+            }
+        }
         when (state.step) {
             0 -> {
                 Text(stringResource(R.string.onboarding_language_title), style = MaterialTheme.typography.titleLarge)

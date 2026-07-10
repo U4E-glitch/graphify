@@ -82,7 +82,7 @@ class WeeklyReportWorker @AssistedInject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_menu_agenda)
+            .setSmallIcon(R.drawable.ic_stat_drop)
             .setContentTitle(context.getString(R.string.notif_report_ready))
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)

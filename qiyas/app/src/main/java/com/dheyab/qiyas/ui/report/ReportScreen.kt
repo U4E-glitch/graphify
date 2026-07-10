@@ -10,7 +10,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -177,10 +181,28 @@ private fun ReportHeader(report: ReportModel) {
 }
 
 @Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
+private fun SectionCard(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    content: @Composable () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                icon?.let {
+                    Icon(
+                        it,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                )
+            }
             content()
         }
     }
@@ -210,7 +232,10 @@ fun glucoseGroupLabel(groupName: String): String = when (groupName) {
 
 @Composable
 private fun GlucoseSection(report: ReportModel, unit: GlucoseUnit) {
-    SectionCard(stringResource(R.string.report_glucose_summary)) {
+    SectionCard(
+        stringResource(R.string.report_glucose_summary),
+        icon = androidx.compose.material.icons.Icons.Filled.WaterDrop,
+    ) {
         val glucose = report.glucose
         if (glucose == null) {
             Text(stringResource(R.string.report_no_data), style = MaterialTheme.typography.bodyMedium)
@@ -253,7 +278,10 @@ private fun GlucoseSection(report: ReportModel, unit: GlucoseUnit) {
 
 @Composable
 private fun BpSection(report: ReportModel) {
-    SectionCard(stringResource(R.string.report_bp_summary)) {
+    SectionCard(
+        stringResource(R.string.report_bp_summary),
+        icon = androidx.compose.material.icons.Icons.Filled.Favorite,
+    ) {
         val bp = report.bp
         if (bp == null) {
             Text(stringResource(R.string.report_no_data), style = MaterialTheme.typography.bodyMedium)
@@ -301,7 +329,10 @@ private fun trendText(delta: Float, formatted: String): String =
 
 @Composable
 private fun TrendsSection(report: ReportModel, unit: GlucoseUnit) {
-    SectionCard(stringResource(R.string.report_trends)) {
+    SectionCard(
+        stringResource(R.string.report_trends),
+        icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.TrendingUp,
+    ) {
         val trends = report.trends
         val anyTrend = listOf(
             trends.fastingMeanDelta,
@@ -349,7 +380,10 @@ private fun glucoseDelta(deltaMgdl: Float, unit: GlucoseUnit): String = when (un
 private fun FlagsSection(report: ReportModel, viewModel: ReportViewModel) {
     if (report.flags.isEmpty()) return
     val languageTag = if (currentLocale().language == "ar") "ar" else "en"
-    SectionCard(stringResource(R.string.report_flags)) {
+    SectionCard(
+        stringResource(R.string.report_flags),
+        icon = androidx.compose.material.icons.Icons.Filled.Lightbulb,
+    ) {
         report.flags.forEach { flagId ->
             viewModel.recommendations.text(flagId, languageTag)?.let { text ->
                 Text(

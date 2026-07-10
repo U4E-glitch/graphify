@@ -14,7 +14,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -49,10 +51,13 @@ import com.dheyab.qiyas.core.UnitConverter
 import com.dheyab.qiyas.domain.model.Reading
 import com.dheyab.qiyas.domain.model.ReadingType
 import com.dheyab.qiyas.domain.model.Zone
+import androidx.compose.ui.text.font.FontWeight
 import com.dheyab.qiyas.ui.common.Formatters
+import com.dheyab.qiyas.ui.common.ZonePill
 import com.dheyab.qiyas.ui.common.currentLocale
 import com.dheyab.qiyas.ui.common.labelRes
 import com.dheyab.qiyas.ui.theme.color
+import com.dheyab.qiyas.ui.theme.containerColor
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -198,16 +203,34 @@ private fun ReadingRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(12.dp)
-                .background(reading.zone.color(), CircleShape),
-        )
+                .size(38.dp)
+                .background(reading.zone.containerColor(), CircleShape),
+        ) {
+            Icon(
+                imageVector = when (reading.type) {
+                    ReadingType.GLUCOSE -> Icons.Filled.WaterDrop
+                    ReadingType.BP -> Icons.Filled.Favorite
+                },
+                contentDescription = null,
+                tint = reading.zone.color(),
+                modifier = Modifier.size(20.dp),
+            )
+        }
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 12.dp),
         ) {
-            Text(text = readingValueText(reading, unit), style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = readingValueText(reading, unit),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                ZonePill(reading.zone)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 contextLabel(reading)?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall)

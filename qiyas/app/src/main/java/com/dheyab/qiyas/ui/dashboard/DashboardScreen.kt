@@ -1,5 +1,6 @@
 package com.dheyab.qiyas.ui.dashboard
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,13 +16,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,13 +35,17 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,6 +58,7 @@ import com.dheyab.qiyas.domain.model.Zone
 import com.dheyab.qiyas.ui.charts.BpChart
 import com.dheyab.qiyas.ui.charts.GlucoseChart
 import com.dheyab.qiyas.ui.common.Formatters
+import com.dheyab.qiyas.ui.common.ZonePill
 import com.dheyab.qiyas.ui.common.labelRes
 import com.dheyab.qiyas.ui.theme.ZoneYellow
 import com.dheyab.qiyas.ui.theme.color
@@ -86,7 +96,23 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_logo),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                        )
+                        Text(
+                            stringResource(R.string.app_name),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
                 actions = {
                     IconButton(onClick = onOpenHistory) {
                         Icon(
@@ -121,7 +147,7 @@ fun DashboardScreen(
         ) {
             if (showBanner) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = ZoneYellow.copy(alpha = 0.15f)),
+                    colors = CardDefaults.cardColors(containerColor = ZoneYellow.copy(alpha = 0.14f)),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(
@@ -140,10 +166,10 @@ fun DashboardScreen(
 
             LatestReadingCard(
                 title = stringResource(R.string.dash_latest_glucose),
+                icon = Icons.Filled.WaterDrop,
                 reading = latestGlucose,
-                valueText = latestGlucose?.let {
-                    "${UnitConverter.formatCanonical(it.glucoseMgdl ?: 0f, unit)} ${stringResource(unit.labelRes())}"
-                },
+                valueText = latestGlucose?.let { UnitConverter.formatCanonical(it.glucoseMgdl ?: 0f, unit) },
+                unitText = stringResource(unit.labelRes()),
                 contextText = latestGlucose?.glucoseContext?.let { stringResource(it.labelRes()) },
             ) {
                 if (glucose7d.isNotEmpty()) {
@@ -160,8 +186,10 @@ fun DashboardScreen(
 
             LatestReadingCard(
                 title = stringResource(R.string.dash_latest_bp),
+                icon = Icons.Filled.Favorite,
                 reading = latestBp,
                 valueText = latestBp?.let { "${it.systolic}/${it.diastolic}" },
+                unitText = stringResource(R.string.unit_mmhg),
                 contextText = latestBp?.bpContext?.let { stringResource(it.labelRes()) },
             ) {
                 if (bp7d.isNotEmpty()) {
@@ -178,12 +206,30 @@ fun DashboardScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 ExtendedFloatingActionButton(
                     onClick = onAddGlucose,
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = {
+                        Text(
+                            stringResource(R.string.dash_add_glucose),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
                     modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.dash_add_glucose), style = MaterialTheme.typography.titleMedium) }
+                )
                 ExtendedFloatingActionButton(
                     onClick = onAddBp,
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = {
+                        Text(
+                            stringResource(R.string.dash_add_bp),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    },
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 2.dp),
                     modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.dash_add_bp), style = MaterialTheme.typography.titleMedium) }
+                )
             }
         }
     }
@@ -192,14 +238,41 @@ fun DashboardScreen(
 @Composable
 private fun LatestReadingCard(
     title: String,
+    icon: ImageVector,
     reading: Reading?,
     valueText: String?,
+    unitText: String,
     contextText: String?,
     sparkline: @Composable () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 10.dp).weight(1f),
+                )
+                reading?.let { ZonePill(it.zone) }
+            }
             if (reading == null || valueText == null) {
                 Text(
                     stringResource(R.string.dash_no_reading_yet),
@@ -207,22 +280,24 @@ private fun LatestReadingCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(14.dp)
-                            .background(reading.zone.color(), CircleShape),
-                    )
+                Row(verticalAlignment = Alignment.Bottom) {
                     Text(
                         text = valueText,
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.displaySmall,
+                        fontWeight = FontWeight.Bold,
                         color = reading.zone.color(),
-                        modifier = Modifier.padding(start = 10.dp),
+                    )
+                    Text(
+                        text = unitText,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(reading.zone.labelRes()), style = MaterialTheme.typography.bodyMedium)
-                    contextText?.let { Text("· $it", style = MaterialTheme.typography.bodyMedium) }
+                    contextText?.let {
+                        Text(it, style = MaterialTheme.typography.bodyMedium)
+                    }
                     Text(
                         "· ${Formatters.relative(reading.measuredAt)}",
                         style = MaterialTheme.typography.bodyMedium,
