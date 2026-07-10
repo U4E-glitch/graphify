@@ -36,7 +36,9 @@ android {
         compose = true
     }
     testOptions {
-        unitTests.all { it.enabled = true }
+        unitTests {
+            isIncludeAndroidResources = true
+        }
     }
 }
 
@@ -82,4 +84,9 @@ dependencies {
     testImplementation(libs.truth)
     testImplementation(libs.turbine)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.test.core.ktx)
+    testImplementation(libs.room.testing)
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }

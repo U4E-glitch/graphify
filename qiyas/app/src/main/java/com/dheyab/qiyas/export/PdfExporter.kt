@@ -40,7 +40,7 @@ class PdfExporter @Inject constructor(
         const val MARGIN = 40
     }
 
-    private data class Line(val text: String, val sizePt: Float, val bold: Boolean = false, val spacingBefore: Float = 0f)
+    internal data class Line(val text: String, val sizePt: Float, val bold: Boolean = false, val spacingBefore: Float = 0f)
 
     fun build(context: Context, report: ReportModel, unit: GlucoseUnit): ByteArray {
         val locale = context.resources.configuration.locales[0] ?: Locale.getDefault()
@@ -91,7 +91,7 @@ class PdfExporter @Inject constructor(
         return output.toByteArray()
     }
 
-    private fun buildLines(
+    internal fun buildLines(
         context: Context,
         report: ReportModel,
         unit: GlucoseUnit,
