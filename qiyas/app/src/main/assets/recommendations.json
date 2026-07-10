@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "flags": {
+    "LOW_DATA": {
+      "en": "Not enough readings this week for reliable trends. Aim for a fasting glucose most mornings and a morning and evening blood-pressure reading on most days.",
+      "ar": "عدد القياسات هذا الأسبوع غير كافٍ لاستنتاج اتجاهات موثوقة. حاول قياس سكر الصائم في معظم الصباحات، وقياس الضغط صباحًا ومساءً في معظم الأيام."
+    },
+    "HYPO_EVENT": {
+      "en": "You had a low blood-sugar event this week. Note what preceded it (a missed meal, unusual activity) and discuss it with your physician promptly.",
+      "ar": "سجّلت هذا الأسبوع حالة انخفاض في سكر الدم. دوّن ما سبقها (وجبة فائتة، نشاط غير معتاد) وناقشها مع طبيبك في أقرب وقت."
+    },
+    "FASTING_HIGH_PATTERN": {
+      "en": "Fasting glucose was above target on 3 or more days. An earlier, lighter dinner, a short walk after dinner, and consistent sleep can help — and review the pattern with your physician.",
+      "ar": "كان سكر الصائم أعلى من الهدف في ثلاثة أيام أو أكثر. قد يساعد عشاء أخف وأبكر، ومشي قصير بعده، ونوم منتظم — وراجع هذا النمط مع طبيبك."
+    },
+    "POSTMEAL_HIGH_PATTERN": {
+      "en": "Post-meal glucose was high on 3 or more occasions. Smaller portions, starting meals with vegetables or protein, and a 10–15 minute walk after eating can help — discuss it with your physician.",
+      "ar": "ارتفع السكر بعد الأكل في ثلاث مناسبات أو أكثر. قد تساعد تقليل حجم الوجبة، والبدء بالخضار أو البروتين، والمشي 10–15 دقيقة بعد الأكل — وناقش ذلك مع طبيبك."
+    },
+    "GLUCOSE_VARIABILITY": {
+      "en": "Your readings swung widely this week. More regular meal timing and consistent carbohydrate portions can reduce swings — worth reviewing with your physician.",
+      "ar": "تفاوتت قراءاتك بشكل كبير هذا الأسبوع. انتظام مواعيد الوجبات وثبات كمية الكربوهيدرات قد يقللان التفاوت — ويستحق الأمر مراجعته مع طبيبك."
+    },
+    "BP_HIGH_PATTERN": {
+      "en": "Two or more blood-pressure readings were in the high range. Reducing sodium, regular activity, adequate sleep, and correct technique (5 minutes seated rest, arm supported) can help — share these readings with your physician.",
+      "ar": "قراءتان أو أكثر للضغط كانتا في النطاق المرتفع. تقليل الملح، والنشاط المنتظم، والنوم الكافي، وطريقة القياس الصحيحة (راحة 5 دقائق جالسًا مع سند الذراع) قد تساعد — وشارك هذه القراءات مع طبيبك."
+    },
+    "BP_CRISIS_EVENT": {
+      "en": "A very high blood-pressure reading was recorded this week. If you have not already, contact your physician about it.",
+      "ar": "سُجّلت هذا الأسبوع قراءة ضغط مرتفعة جدًا. إن لم تكن قد فعلت، تواصل مع طبيبك بشأنها."
+    },
+    "BP_MORNING_DOMINANCE": {
+      "en": "Your morning blood pressure runs notably higher than evening. Measure before coffee and after 5 minutes of seated rest, and mention this pattern to your physician.",
+      "ar": "ضغطك الصباحي أعلى بوضوح من المسائي. قِس قبل القهوة وبعد 5 دقائق من الراحة جالسًا، واذكر هذا النمط لطبيبك."
+    },
+    "BP_LOW_PATTERN": {
+      "en": "Two or more readings were on the low side. Stay hydrated, stand up slowly, and discuss it with your physician — especially if you feel dizzy.",
+      "ar": "قراءتان أو أكثر كانتا منخفضتين. حافظ على شرب الماء، وانهض ببطء، وناقش الأمر مع طبيبك — خاصة إذا شعرت بدوخة."
+    },
+    "ALL_IN_RANGE": {
+      "en": "All readings were in range this week — keep the same routine going.",
+      "ar": "جميع القراءات كانت ضمن النطاق هذا الأسبوع — واصل على النمط نفسه."
+    }
+  }
+}
