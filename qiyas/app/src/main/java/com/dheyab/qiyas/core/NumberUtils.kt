@@ -45,4 +45,12 @@ object NumberUtils {
 
     /** Normalizes then parses an integer; null when not a valid whole number. */
     fun parseInt(s: String): Int? = normalizeDigits(s).toIntOrNull()
+
+    /**
+     * Wraps a fragment in Unicode first-strong isolates (FSI…PDI) so that
+     * Latin-digit values keep their internal order when embedded in RTL
+     * sentences — without this, BiDi reordering can interleave adjacent
+     * numeric runs (e.g. "92 mg/dL · 2026/07/06" scrambling in Arabic).
+     */
+    fun bidiIsolate(s: String): String = "⁨$s⁩"
 }

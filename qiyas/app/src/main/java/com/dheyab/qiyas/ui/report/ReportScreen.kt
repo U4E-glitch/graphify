@@ -217,10 +217,13 @@ private fun StatRow(label: String, value: String) {
 }
 
 @Composable
-private fun glucoseValue(mgdl: Float, unit: GlucoseUnit): String =
+private fun glucoseValue(mgdl: Float, unit: GlucoseUnit): String = NumberUtils.bidiIsolate(
     "${UnitConverter.formatCanonical(mgdl, unit)} ${stringResource(unit.labelRes())}"
+)
 
-private fun pct(value: Float): String = String.format(Locale.US, "%.0f%%", value)
+private fun pct(value: Float): String = NumberUtils.bidiIsolate(String.format(Locale.US, "%.0f%%", value))
+
+private fun bpValue(systolic: Int, diastolic: Int): String = NumberUtils.bidiIsolate("$systolic/$diastolic")
 
 @Composable
 fun glucoseGroupLabel(groupName: String): String = when (groupName) {
@@ -290,18 +293,18 @@ private fun BpSection(report: ReportModel) {
         StatRow(stringResource(R.string.report_readings_count), bp.count.toString())
         StatRow(
             stringResource(R.string.report_mean),
-            "${bp.meanSystolic.toInt()}/${bp.meanDiastolic.toInt()}",
+            bpValue(bp.meanSystolic.toInt(), bp.meanDiastolic.toInt()),
         )
         bp.morning?.let {
             StatRow(
                 stringResource(R.string.report_morning),
-                "${it.meanSystolic.toInt()}/${it.meanDiastolic.toInt()}",
+                bpValue(it.meanSystolic.toInt(), it.meanDiastolic.toInt()),
             )
         }
         bp.evening?.let {
             StatRow(
                 stringResource(R.string.report_evening),
-                "${it.meanSystolic.toInt()}/${it.meanDiastolic.toInt()}",
+                bpValue(it.meanSystolic.toInt(), it.meanDiastolic.toInt()),
             )
         }
         Text(stringResource(R.string.report_zone_distribution), style = MaterialTheme.typography.titleSmall)
@@ -319,13 +322,15 @@ private fun BpSection(report: ReportModel) {
         val locale = currentLocale()
         StatRow(
             stringResource(R.string.report_worst_reading),
-            "${bp.worst.systolic}/${bp.worst.diastolic} · ${Formatters.dateTime(bp.worst.measuredAt, locale)}",
+            "${bpValue(bp.worst.systolic, bp.worst.diastolic)} · ${Formatters.dateTime(bp.worst.measuredAt, locale)}",
         )
     }
 }
 
-private fun trendText(delta: Float, formatted: String): String =
-    if (delta > 0) "▲ +$formatted" else if (delta < 0) "▼ $formatted" else "$formatted"
+private fun trendText(delta: Float, formatted: String): String {
+    val value = NumberUtils.bidiIsolate(if (delta > 0) "+$formatted" else formatted)
+    return if (delta > 0) "▲ $value" else if (delta < 0) "▼ $value" else value
+}
 
 @Composable
 private fun TrendsSection(report: ReportModel, unit: GlucoseUnit) {

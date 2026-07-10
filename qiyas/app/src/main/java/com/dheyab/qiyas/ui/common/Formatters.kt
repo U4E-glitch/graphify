@@ -20,30 +20,38 @@ object Formatters {
         val formatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
             .withLocale(locale)
             .withZone(ZoneId.systemDefault())
-        return NumberUtils.toLatinDigits(formatter.format(Instant.ofEpochMilli(millis)))
+        return NumberUtils.bidiIsolate(
+            NumberUtils.toLatinDigits(formatter.format(Instant.ofEpochMilli(millis)))
+        )
     }
 
     fun date(millis: Long, locale: Locale): String {
         val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
             .withLocale(locale)
             .withZone(ZoneId.systemDefault())
-        return NumberUtils.toLatinDigits(formatter.format(Instant.ofEpochMilli(millis)))
+        return NumberUtils.bidiIsolate(
+            NumberUtils.toLatinDigits(formatter.format(Instant.ofEpochMilli(millis)))
+        )
     }
 
     fun time(millis: Long, locale: Locale): String {
         val formatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
             .withLocale(locale)
             .withZone(ZoneId.systemDefault())
-        return NumberUtils.toLatinDigits(formatter.format(Instant.ofEpochMilli(millis)))
+        return NumberUtils.bidiIsolate(
+            NumberUtils.toLatinDigits(formatter.format(Instant.ofEpochMilli(millis)))
+        )
     }
 
     fun relative(millis: Long): String =
-        NumberUtils.toLatinDigits(
-            DateUtils.getRelativeTimeSpanString(
-                millis,
-                System.currentTimeMillis(),
-                DateUtils.MINUTE_IN_MILLIS,
-            ).toString()
+        NumberUtils.bidiIsolate(
+            NumberUtils.toLatinDigits(
+                DateUtils.getRelativeTimeSpanString(
+                    millis,
+                    System.currentTimeMillis(),
+                    DateUtils.MINUTE_IN_MILLIS,
+                ).toString()
+            )
         )
 }
 

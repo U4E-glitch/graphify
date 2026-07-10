@@ -98,9 +98,12 @@ class PdfExporter @Inject constructor(
         locale: Locale,
     ): List<Line> {
         fun str(resId: Int, vararg args: Any) = context.getString(resId, *args)
-        fun glucoseValue(mgdl: Float) =
+        // Numeric fragments are BiDi-isolated so RTL sentences can't reorder them.
+        fun glucoseValue(mgdl: Float) = NumberUtils.bidiIsolate(
             "${UnitConverter.formatCanonical(mgdl, unit)} ${str(if (unit == GlucoseUnit.MGDL) R.string.unit_mgdl else R.string.unit_mmol)}"
-        fun pct(v: Float) = String.format(Locale.US, "%.0f%%", v)
+        )
+        fun pct(v: Float) = NumberUtils.bidiIsolate(String.format(Locale.US, "%.0f%%", v))
+        fun bpValue(systolic: Int, diastolic: Int) = NumberUtils.bidiIsolate("$systolic/$diastolic")
 
         val zoneId = ZoneId.systemDefault()
         val weekStart = LocalDate.parse(report.weekStartDate)
@@ -188,20 +191,20 @@ class PdfExporter @Inject constructor(
         } else {
             lines += Line("${str(R.string.report_readings_count)}: ${bp.count}", 11f, spacingBefore = 4f)
             lines += Line(
-                "${str(R.string.report_mean)}: ${bp.meanSystolic.toInt()}/${bp.meanDiastolic.toInt()}",
+                "${str(R.string.report_mean)}: ${bpValue(bp.meanSystolic.toInt(), bp.meanDiastolic.toInt())}",
                 11f,
                 spacingBefore = 2f,
             )
             bp.morning?.let {
                 lines += Line(
-                    "${str(R.string.report_morning)}: ${it.meanSystolic.toInt()}/${it.meanDiastolic.toInt()}",
+                    "${str(R.string.report_morning)}: ${bpValue(it.meanSystolic.toInt(), it.meanDiastolic.toInt())}",
                     11f,
                     spacingBefore = 2f,
                 )
             }
             bp.evening?.let {
                 lines += Line(
-                    "${str(R.string.report_evening)}: ${it.meanSystolic.toInt()}/${it.meanDiastolic.toInt()}",
+                    "${str(R.string.report_evening)}: ${bpValue(it.meanSystolic.toInt(), it.meanDiastolic.toInt())}",
                     11f,
                     spacingBefore = 2f,
                 )
@@ -210,7 +213,7 @@ class PdfExporter @Inject constructor(
                 lines += Line("${zoneLabel(zoneName)}: ${pct(percentage)}", 11f, spacingBefore = 2f)
             }
             lines += Line(
-                "${str(R.string.report_worst_reading)}: ${bp.worst.systolic}/${bp.worst.diastolic} · " +
+                "${str(R.string.report_worst_reading)}: ${bpValue(bp.worst.systolic, bp.worst.diastolic)} · " +
                     Formatters.dateTime(bp.worst.measuredAt, locale),
                 11f,
                 spacingBefore = 2f,
@@ -220,10 +223,12 @@ class PdfExporter @Inject constructor(
         // Trends
         val trends = report.trends
         val trendLines = mutableListOf<Line>()
-        fun glucoseDelta(delta: Float) = when (unit) {
-            GlucoseUnit.MGDL -> String.format(Locale.US, "%+.0f", delta)
-            GlucoseUnit.MMOL -> String.format(Locale.US, "%+.1f", UnitConverter.mgdlToMmol(delta))
-        }
+        fun glucoseDelta(delta: Float) = NumberUtils.bidiIsolate(
+            when (unit) {
+                GlucoseUnit.MGDL -> String.format(Locale.US, "%+.0f", delta)
+                GlucoseUnit.MMOL -> String.format(Locale.US, "%+.1f", UnitConverter.mgdlToMmol(delta))
+            }
+        )
         trends.fastingMeanDelta?.let {
             trendLines += Line(
                 "${str(R.string.report_fasting_mean)}: ${if (it > 0) "▲" else if (it < 0) "▼" else ""} ${glucoseDelta(it)}",
@@ -239,14 +244,14 @@ class PdfExporter @Inject constructor(
         trends.systolicMeanDelta?.let {
             trendLines += Line(
                 "${str(R.string.report_systolic_mean)}: ${if (it > 0) "▲" else if (it < 0) "▼" else ""} " +
-                    String.format(Locale.US, "%+.0f", it),
+                    NumberUtils.bidiIsolate(String.format(Locale.US, "%+.0f", it)),
                 11f, spacingBefore = 2f,
             )
         }
         trends.diastolicMeanDelta?.let {
             trendLines += Line(
                 "${str(R.string.report_diastolic_mean)}: ${if (it > 0) "▲" else if (it < 0) "▼" else ""} " +
-                    String.format(Locale.US, "%+.0f", it),
+                    NumberUtils.bidiIsolate(String.format(Locale.US, "%+.0f", it)),
                 11f, spacingBefore = 2f,
             )
         }

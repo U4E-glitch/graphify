@@ -327,5 +327,11 @@ class AppFlowIntegrationTest {
                 .that(line.any { it in easternDigits })
                 .isFalse()
         }
+
+        // BiDi regression: min/max lines carry FSI…PDI isolates around each numeric
+        // fragment so Arabic text can't reorder "62 mg/dL · <date>".
+        val minLine = arLines.first { it.startsWith("الأدنى") }
+        assertThat(minLine).contains("⁨62 mg/dL⁩")
+        assertThat(minLine.count { it == '⁨' }).isEqualTo(2) // value + date
     }
 }
