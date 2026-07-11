@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- white droplet, sized for the adaptive-icon safe zone -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 C54,30 38,50 38,62 A16,16 0 0 0 70,62 C70,50 54,30 54,30 Z" />
+    <!-- pulse line in brand teal -->
+    <path
+        android:strokeColor="#00696D"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M42,63 L49,63 L53,55 L58,70 L62,63 L66,63" />
+</vector>

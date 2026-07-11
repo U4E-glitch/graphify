@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">قياس</string>
+
+    <!-- Common -->
+    <string name="action_save">حفظ</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="action_delete">حذف</string>
+    <string name="action_edit">تعديل</string>
+    <string name="action_ok">حسنًا</string>
+    <string name="action_back">رجوع</string>
+    <string name="action_continue">متابعة</string>
+
+    <!-- Safety-critical copy (Appendix B — verbatim, do not edit) -->
+    <string name="disclaimer_title">تنبيه مهم</string>
+    <string name="disclaimer_body">«قياس» أداة تتبع شخصية، ولا يقدّم نصيحة طبية أو تشخيصًا أو علاجًا. النطاقات المعروضة إرشادية عامة للبالغين وقد لا تطابق أهدافك الشخصية. اتبع دائمًا توجيهات طبيبك.</string>
+    <string name="alert_hypo">انخفاض سكر الدم (%1$s). تناول نحو 15غ من الكربوهيدرات سريعة المفعول (مثل العصير أو أقراص الجلوكوز) وأعد القياس بعد 15 دقيقة. إذا بقي منخفضًا أو ساءت الأعراض فاطلب مساعدة طبية.</string>
+    <string name="alert_hypo_severe">انخفاض شديد في سكر الدم (%1$s). عالجه فورًا بكربوهيدرات سريعة المفعول. إذا شعرت بتشوّش أو نعاس شديد أو تعذّر البلع بأمان، فاطلب الإسعاف فورًا.</string>
+    <string name="alert_hyper_emergency">ارتفاع شديد في سكر الدم (%1$s). اشرب الماء وتجنب المجهود الشاق وتواصل مع طبيبك اليوم. إذا صاحبه غثيان أو تقيؤ أو ألم في البطن أو تسارع في التنفس فاطلب رعاية عاجلة.</string>
+    <string name="alert_bp_crisis">ارتفاع شديد في ضغط الدم (%1$s/%2$s). اجلس وارتح 5 دقائق ثم أعد القياس. إذا بقي 180/120 أو أعلى، أو شعرت بألم في الصدر أو ضيق تنفس أو تغيّر في الرؤية أو ضعف أو صعوبة في الكلام، فاطلب رعاية طارئة فورًا.</string>
+    <string name="caution_bp_low">هذه القراءة منخفضة نسبيًا. إذا شعرت بدوخة أو إغماء فاجلس واشرب الماء وأخبر طبيبك بذلك.</string>
+    <string name="report_footer">هذا التقرير لغرض التتبع الشخصي وليس نصيحة طبية. راجعه مع طبيبك.</string>
+    <string name="alert_understood">فهمت</string>
+    <string name="alert_add_followup">أضف قياسًا بعد 5 دقائق</string>
+
+    <!-- Context labels (Appendix B) -->
+    <string name="context_fasting">صائم</string>
+    <string name="context_pre_meal">قبل الأكل</string>
+    <string name="context_post_meal_1h">بعد الأكل بساعة</string>
+    <string name="context_post_meal_2h">بعد الأكل بساعتين</string>
+    <string name="context_bedtime">قبل النوم</string>
+    <string name="context_random">عشوائي</string>
+    <string name="context_morning">صباحًا</string>
+    <string name="context_evening">مساءً</string>
+    <string name="context_other">وقت آخر</string>
+
+    <!-- Units -->
+    <string name="unit_mgdl">mg/dL</string>
+    <string name="unit_mmol">mmol/L</string>
+    <string name="unit_mmhg">mmHg</string>
+
+    <!-- Zones -->
+    <string name="zone_emergency_low_severe">انخفاض شديد</string>
+    <string name="zone_emergency_low">انخفاض — تصرّف الآن</string>
+    <string name="zone_emergency_high">ارتفاع شديد</string>
+    <string name="zone_below_range">دون النطاق</string>
+    <string name="zone_in_range">ضمن النطاق</string>
+    <string name="zone_above_range">فوق النطاق</string>
+    <string name="zone_high">مرتفع</string>
+    <string name="zone_crisis">حالة حرجة</string>
+    <string name="zone_elevated">مرتفع قليلًا</string>
+    <string name="zone_low">منخفض</string>
+    <string name="zone_normal">طبيعي</string>
+
+    <!-- Entry screens -->
+    <string name="title_add_glucose">تسجيل سكر الدم</string>
+    <string name="title_edit_glucose">تعديل قراءة السكر</string>
+    <string name="title_add_bp">تسجيل ضغط الدم</string>
+    <string name="title_edit_bp">تعديل قراءة الضغط</string>
+    <string name="label_glucose_value">سكر الدم</string>
+    <string name="label_systolic">الانقباضي</string>
+    <string name="label_diastolic">الانبساطي</string>
+    <string name="label_pulse">النبض (اختياري)</string>
+    <string name="label_note">ملاحظة (اختيارية)</string>
+    <string name="photo_label">صورة الجهاز (اختيارية)</string>
+    <string name="photo_scan_camera">مسح بالكاميرا</string>
+    <string name="photo_scan_gallery">من المعرض</string>
+    <string name="photo_scanning">جارٍ قراءة الصورة…</string>
+    <string name="photo_filled">تمت تعبئة القيم من الصورة — تحقق منها قبل الحفظ</string>
+    <string name="photo_not_found">تعذّرت قراءة القيم من الصورة. أُرفقت الصورة — أدخل الأرقام يدويًا</string>
+    <string name="photo_remove">إزالة الصورة</string>
+    <string name="photo_view">عرض الصورة</string>
+    <string name="label_context">وقت القياس</string>
+    <string name="label_time">الوقت</string>
+    <string name="snackbar_saved">تم حفظ القراءة — %1$s</string>
+
+    <!-- Validation errors -->
+    <string name="err_glucose_range">أدخل قيمة بين %1$s و%2$s %3$s</string>
+    <string name="err_systolic_range">يجب أن يكون الانقباضي بين 60 و260</string>
+    <string name="err_diastolic_range">يجب أن يكون الانبساطي بين 30 و160</string>
+    <string name="err_sys_not_greater">يجب أن يكون الانقباضي أكبر من الانبساطي</string>
+    <string name="err_pulse_range">يجب أن يكون النبض بين 30 و220</string>
+    <string name="err_future_time">لا يمكن اختيار وقت في المستقبل</string>
+    <string name="err_invalid_number">أدخل رقمًا صحيحًا</string>
+
+    <!-- Dashboard -->
+    <string name="dash_latest_glucose">آخر قراءة سكر</string>
+    <string name="dash_latest_bp">آخر قراءة ضغط</string>
+    <string name="dash_no_reading_yet">لا توجد قراءات بعد</string>
+    <string name="dash_add_glucose">+ سكر</string>
+    <string name="dash_add_bp">+ ضغط</string>
+    <string name="dash_low_data_banner">سجّل مزيدًا من القراءات للحصول على تقرير أسبوعي موثوق</string>
+    <string name="dash_last_7_days">آخر 7 أيام</string>
+    <string name="nav_history">السجل</string>
+    <string name="nav_report">التقرير</string>
+    <string name="nav_settings">الإعدادات</string>
+
+    <!-- History -->
+    <string name="history_title">السجل</string>
+    <string name="filter_all">الكل</string>
+    <string name="filter_glucose">السكر</string>
+    <string name="filter_bp">الضغط</string>
+    <string name="delete_confirm_title">حذف القراءة؟</string>
+    <string name="delete_confirm_body">سيتم حذف هذه القراءة نهائيًا.</string>
+    <string name="history_empty">لا توجد قراءات مطابقة لهذا التصفية</string>
+
+    <!-- Report -->
+    <string name="report_title">التقرير الأسبوعي</string>
+    <string name="report_week_range">%1$s – %2$s</string>
+    <string name="report_adequacy">%1$s قراءة سكر · %2$s قراءة ضغط</string>
+    <string name="report_glucose_summary">ملخص السكر</string>
+    <string name="report_bp_summary">ملخص الضغط</string>
+    <string name="report_trends">الاتجاهات مقارنة بالأسبوع السابق</string>
+    <string name="report_flags">الملاحظات والتوصيات</string>
+    <string name="report_export_pdf">تصدير PDF</string>
+    <string name="report_export_csv">تصدير CSV</string>
+    <string name="report_group_fasting">صائم/قبل الأكل</string>
+    <string name="report_group_postmeal">بعد الأكل</string>
+    <string name="report_mean">المتوسط</string>
+    <string name="report_in_range">ضمن النطاق</string>
+    <string name="report_lowest">الأدنى</string>
+    <string name="report_highest">الأعلى</string>
+    <string name="report_readings_count">عدد القراءات</string>
+    <string name="report_zone_distribution">توزيع النطاقات</string>
+    <string name="report_morning">صباحًا</string>
+    <string name="report_evening">مساءً</string>
+    <string name="report_worst_reading">أعلى قراءة</string>
+    <string name="report_no_data">لا توجد قراءات مسجلة هذا الأسبوع</string>
+    <string name="report_no_trends">لا تتوفر بيانات كافية في الأسبوعين لعرض الاتجاهات</string>
+    <string name="report_pick_week">اختر الأسبوع</string>
+    <string name="report_current_week">هذا الأسبوع</string>
+    <string name="report_fasting_mean">متوسط الصائم</string>
+    <string name="report_postmeal_mean">متوسط ما بعد الأكل</string>
+    <string name="report_systolic_mean">متوسط الانقباضي</string>
+    <string name="report_diastolic_mean">متوسط الانبساطي</string>
+
+    <!-- Settings -->
+    <string name="settings_title">الإعدادات</string>
+    <string name="settings_language">اللغة</string>
+    <string name="language_system">لغة النظام</string>
+    <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
+    <string name="settings_glucose_unit">وحدة قياس السكر</string>
+    <string name="settings_week_start">يبدأ الأسبوع يوم</string>
+    <string name="settings_notification">إشعار التقرير الأسبوعي</string>
+    <string name="settings_export_all">تصدير جميع البيانات (CSV)</string>
+    <string name="settings_about">حول التطبيق</string>
+
+    <!-- About -->
+    <string name="about_title">حول التطبيق</string>
+    <string name="about_purpose">«قياس» تطبيق شخصي يعمل دون اتصال بالإنترنت لتتبع سكر الدم وضغط الدم. تُصنَّف القراءات فور تسجيلها وتُلخَّص في تقرير أسبوعي مع اقتراحات تخص نمط الحياة فقط. تبقى جميع بياناتك على هذا الجهاز.</string>
+    <string name="about_reference_title">المرجعية العلمية</string>
+    <string name="about_reference_body">تعتمد فئات ضغط الدم على تصنيف ACC/AHA مع حد التوافق العام 140/90 للقراءات المرتفعة، وتعتمد أهداف السكر على الإرشادات العامة للبالغين من الجمعية الأمريكية للسكري (ADA). أهدافك الشخصية يحددها طبيبك.</string>
+    <string name="about_version">الإصدار %1$s</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_language_title">اختر لغتك</string>
+    <string name="onboarding_unit_title">اختر وحدة قياس السكر</string>
+    <string name="onboarding_accept">أوافق</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_weekly">التقرير الأسبوعي</string>
+    <string name="notif_report_ready">تقريرك الأسبوعي جاهز</string>
+</resources>

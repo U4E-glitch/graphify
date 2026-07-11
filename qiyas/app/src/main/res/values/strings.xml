@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Qiyas</string>
+
+    <!-- Common -->
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_ok">OK</string>
+    <string name="action_back">Back</string>
+    <string name="action_continue">Continue</string>
+
+    <!-- Safety-critical copy (Appendix B — verbatim, do not edit) -->
+    <string name="disclaimer_title">Important</string>
+    <string name="disclaimer_body">Qiyas is a personal tracking tool. It does not provide medical advice, diagnosis, or treatment. The ranges shown are general adult guidelines and may not match your personal targets. Always follow your physician\'s guidance.</string>
+    <string name="alert_hypo">Low blood sugar (%1$s). Take about 15 g of fast-acting carbohydrates (such as juice or glucose tablets) and re-check in 15 minutes. If it stays low or symptoms worsen, seek medical help.</string>
+    <string name="alert_hypo_severe">Severely low blood sugar (%1$s). Treat immediately with fast-acting carbohydrates. If you feel confused or drowsy, or cannot swallow safely, get emergency help now.</string>
+    <string name="alert_hyper_emergency">Very high blood sugar (%1$s). Drink water, avoid strenuous activity, and contact your physician today. If you have nausea, vomiting, abdominal pain, or rapid breathing, seek urgent care.</string>
+    <string name="alert_bp_crisis">Very high blood pressure (%1$s/%2$s). Sit and rest for 5 minutes, then measure again. If it is still 180/120 or higher — or you have chest pain, shortness of breath, vision changes, weakness, or trouble speaking — seek emergency care immediately.</string>
+    <string name="caution_bp_low">This reading is on the low side. If you feel dizzy or faint, sit down, hydrate, and mention it to your physician.</string>
+    <string name="report_footer">This report is for personal tracking and is not medical advice. Review it with your physician.</string>
+    <string name="alert_understood">I understand</string>
+    <string name="alert_add_followup">Add follow-up reading</string>
+
+    <!-- Context labels (Appendix B) -->
+    <string name="context_fasting">Fasting</string>
+    <string name="context_pre_meal">Before meal</string>
+    <string name="context_post_meal_1h">1h after meal</string>
+    <string name="context_post_meal_2h">2h after meal</string>
+    <string name="context_bedtime">Bedtime</string>
+    <string name="context_random">Random</string>
+    <string name="context_morning">Morning</string>
+    <string name="context_evening">Evening</string>
+    <string name="context_other">Other</string>
+
+    <!-- Units -->
+    <string name="unit_mgdl">mg/dL</string>
+    <string name="unit_mmol">mmol/L</string>
+    <string name="unit_mmhg">mmHg</string>
+
+    <!-- Zones -->
+    <string name="zone_emergency_low_severe">Severely low</string>
+    <string name="zone_emergency_low">Low — act now</string>
+    <string name="zone_emergency_high">Very high</string>
+    <string name="zone_below_range">Below range</string>
+    <string name="zone_in_range">In range</string>
+    <string name="zone_above_range">Above range</string>
+    <string name="zone_high">High</string>
+    <string name="zone_crisis">Crisis</string>
+    <string name="zone_elevated">Elevated</string>
+    <string name="zone_low">Low</string>
+    <string name="zone_normal">Normal</string>
+
+    <!-- Entry screens -->
+    <string name="title_add_glucose">Log glucose</string>
+    <string name="title_edit_glucose">Edit glucose</string>
+    <string name="title_add_bp">Log blood pressure</string>
+    <string name="title_edit_bp">Edit blood pressure</string>
+    <string name="label_glucose_value">Glucose</string>
+    <string name="label_systolic">Systolic</string>
+    <string name="label_diastolic">Diastolic</string>
+    <string name="label_pulse">Pulse (optional)</string>
+    <string name="label_note">Note (optional)</string>
+    <string name="photo_label">Meter photo (optional)</string>
+    <string name="photo_scan_camera">Scan with camera</string>
+    <string name="photo_scan_gallery">From gallery</string>
+    <string name="photo_scanning">Reading the photo…</string>
+    <string name="photo_filled">Values filled from the photo — please verify before saving</string>
+    <string name="photo_not_found">Couldn\'t read values from the photo. It\'s attached — enter the numbers manually</string>
+    <string name="photo_remove">Remove photo</string>
+    <string name="photo_view">View photo</string>
+    <string name="label_context">Context</string>
+    <string name="label_time">Time</string>
+    <string name="snackbar_saved">Reading saved — %1$s</string>
+
+    <!-- Validation errors -->
+    <string name="err_glucose_range">Enter a value between %1$s and %2$s %3$s</string>
+    <string name="err_systolic_range">Systolic must be between 60 and 260</string>
+    <string name="err_diastolic_range">Diastolic must be between 30 and 160</string>
+    <string name="err_sys_not_greater">Systolic must be greater than diastolic</string>
+    <string name="err_pulse_range">Pulse must be between 30 and 220</string>
+    <string name="err_future_time">Time cannot be in the future</string>
+    <string name="err_invalid_number">Enter a valid number</string>
+
+    <!-- Dashboard -->
+    <string name="dash_latest_glucose">Latest glucose</string>
+    <string name="dash_latest_bp">Latest blood pressure</string>
+    <string name="dash_no_reading_yet">No readings yet</string>
+    <string name="dash_add_glucose">+ Glucose</string>
+    <string name="dash_add_bp">+ BP</string>
+    <string name="dash_low_data_banner">Log more readings for a reliable weekly report</string>
+    <string name="dash_last_7_days">Last 7 days</string>
+    <string name="nav_history">History</string>
+    <string name="nav_report">Report</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- History -->
+    <string name="history_title">History</string>
+    <string name="filter_all">All</string>
+    <string name="filter_glucose">Glucose</string>
+    <string name="filter_bp">Blood pressure</string>
+    <string name="delete_confirm_title">Delete reading?</string>
+    <string name="delete_confirm_body">This reading will be removed permanently.</string>
+    <string name="history_empty">No readings match this filter</string>
+
+    <!-- Report -->
+    <string name="report_title">Weekly report</string>
+    <string name="report_week_range">%1$s – %2$s</string>
+    <string name="report_adequacy">%1$s glucose · %2$s blood pressure readings</string>
+    <string name="report_glucose_summary">Glucose summary</string>
+    <string name="report_bp_summary">Blood pressure summary</string>
+    <string name="report_trends">Trends vs previous week</string>
+    <string name="report_flags">Flags &amp; recommendations</string>
+    <string name="report_export_pdf">Export PDF</string>
+    <string name="report_export_csv">Export CSV</string>
+    <string name="report_group_fasting">Fasting/Pre-meal</string>
+    <string name="report_group_postmeal">Post-meal</string>
+    <string name="report_mean">Mean</string>
+    <string name="report_in_range">In range</string>
+    <string name="report_lowest">Lowest</string>
+    <string name="report_highest">Highest</string>
+    <string name="report_readings_count">Readings</string>
+    <string name="report_zone_distribution">Zone distribution</string>
+    <string name="report_morning">Morning</string>
+    <string name="report_evening">Evening</string>
+    <string name="report_worst_reading">Highest reading</string>
+    <string name="report_no_data">No readings recorded this week</string>
+    <string name="report_no_trends">Not enough data in both weeks for trends</string>
+    <string name="report_pick_week">Pick week</string>
+    <string name="report_current_week">This week</string>
+    <string name="report_fasting_mean">Fasting mean</string>
+    <string name="report_postmeal_mean">Post-meal mean</string>
+    <string name="report_systolic_mean">Systolic mean</string>
+    <string name="report_diastolic_mean">Diastolic mean</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="language_english">English</string>
+    <string name="language_arabic">العربية</string>
+    <string name="settings_glucose_unit">Glucose unit</string>
+    <string name="settings_week_start">Week starts on</string>
+    <string name="settings_notification">Weekly report notification</string>
+    <string name="settings_export_all">Export all data (CSV)</string>
+    <string name="settings_about">About</string>
+
+    <!-- About -->
+    <string name="about_title">About</string>
+    <string name="about_purpose">Qiyas is a fully offline personal tracker for blood glucose and blood pressure. Readings are classified immediately and summarized in a weekly report with lifestyle-only suggestions. All data stays on this device.</string>
+    <string name="about_reference_title">Reference basis</string>
+    <string name="about_reference_body">Blood pressure categories follow ACC/AHA definitions with the universal consensus threshold of 140/90 for high readings. Glucose targets follow ADA general adult guidance. Personal targets are set by your physician.</string>
+    <string name="about_version">Version %1$s</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_language_title">Choose your language</string>
+    <string name="onboarding_unit_title">Choose your glucose unit</string>
+    <string name="onboarding_accept">Accept</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_weekly">Weekly report</string>
+    <string name="notif_report_ready">Your weekly report is ready</string>
+</resources>

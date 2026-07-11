@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "source": "ACC/AHA BP categories with consensus red at 140/90; ADA general adult glucose targets",
+  "glucose_mgdl": {
+    "emergency": { "severe_low_below": 54, "low_below": 70, "high_at_or_above": 300 },
+    "contexts": {
+      "FASTING":      { "below_range": [70, 79], "in_range": [80, 130], "above_range": [131, 180] },
+      "PRE_MEAL":     { "below_range": [70, 79], "in_range": [80, 130], "above_range": [131, 180] },
+      "POST_MEAL_1H": { "in_range": [70, 179], "above_range": [180, 249] },
+      "POST_MEAL_2H": { "in_range": [70, 179], "above_range": [180, 249] },
+      "BEDTIME":      { "in_range": [70, 179], "above_range": [180, 249] },
+      "RANDOM":       { "in_range": [70, 179], "above_range": [180, 249] }
+    },
+    "note": "Anything above above_range and below emergency high classifies as HIGH."
+  },
+  "bp": {
+    "crisis":   { "systolic_at_or_above": 180, "diastolic_at_or_above": 120 },
+    "high":     { "systolic_at_or_above": 140, "diastolic_at_or_above": 90 },
+    "elevated": { "systolic_at_or_above": 130, "diastolic_at_or_above": 80 },
+    "low":      { "systolic_below": 90, "diastolic_below": 60 }
+  }
+}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Qiyas logo: droplet + pulse line -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- droplet -->
+    <path
+        android:fillColor="#00696D"
+        android:pathData="M54,18 C54,18 30,47 30,64 A24,24 0 0 0 78,64 C78,47 54,18 54,18 Z" />
+    <!-- pulse line -->
+    <path
+        android:strokeColor="#9CF1F5"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M36,66 L46,66 L52,54 L60,76 L66,66 L72,66" />
+</vector>
