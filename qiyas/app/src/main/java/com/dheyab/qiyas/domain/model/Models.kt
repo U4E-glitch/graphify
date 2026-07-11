@@ -47,4 +47,6 @@ data class Reading(
     val bpContext: BpContext? = null,
     val note: String? = null,
     val zone: Zone,
+    /** App-private relative path of an attached meter photo. */
+    val photoPath: String? = null,
 )

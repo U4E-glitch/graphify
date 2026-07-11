@@ -20,6 +20,7 @@ fun ReadingEntity.toDomain(): Reading = Reading(
     bpContext = bpContext?.let { BpContext.valueOf(it) },
     note = note,
     zone = Zone.valueOf(zone),
+    photoPath = photoPath,
 )
 
 fun Reading.toEntity(): ReadingEntity = ReadingEntity(
@@ -36,4 +37,5 @@ fun Reading.toEntity(): ReadingEntity = ReadingEntity(
     bpContext = bpContext?.name,
     note = note,
     zone = zone.name,
+    photoPath = photoPath,
 )

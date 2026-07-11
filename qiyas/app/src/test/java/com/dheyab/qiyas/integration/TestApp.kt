@@ -44,6 +44,10 @@ class TestGraph(context: Context) {
 
     val recommendations: RecommendationsConfig = context.assets.open("recommendations.json")
         .bufferedReader().use { RecommendationsConfig.fromJson(it.readText()) }
+
+    val photoStore = com.dheyab.qiyas.data.photo.PhotoStore(context)
+
+    val scanner = com.dheyab.qiyas.data.photo.MeterScanner()
 }
 
 /** Plain Application for Robolectric — avoids booting the Hilt app class. */

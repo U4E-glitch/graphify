@@ -1,10 +1,13 @@
 package com.dheyab.qiyas.ui.entry
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dheyab.qiyas.core.NumberUtils
 import com.dheyab.qiyas.data.db.DEFAULT_PROFILE_ID
+import com.dheyab.qiyas.data.photo.MeterScanner
+import com.dheyab.qiyas.data.photo.PhotoStore
 import com.dheyab.qiyas.data.repo.ReadingRepository
 import com.dheyab.qiyas.domain.FieldError
 import com.dheyab.qiyas.domain.InputLimits
@@ -13,6 +16,7 @@ import com.dheyab.qiyas.domain.model.BpContext
 import com.dheyab.qiyas.domain.model.Reading
 import com.dheyab.qiyas.domain.model.ReadingType
 import com.dheyab.qiyas.domain.model.Zone
+import com.dheyab.qiyas.domain.ocr.MeterValueParser
 import com.dheyab.qiyas.ui.common.EmergencyAlert
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -37,6 +41,8 @@ data class BpEntryUiState(
     val closeWithZone: Zone? = null,
     val goToFollowUp: Boolean = false,
     val saving: Boolean = false,
+    val photoPath: String? = null,
+    val scanStatus: ScanStatus? = null,
 ) {
     // Hard Rule 2: Save stays disabled until a context is chosen.
     val canSave: Boolean
@@ -50,15 +56,22 @@ data class BpEntryUiState(
 class BpEntryViewModel @Inject constructor(
     private val repository: ReadingRepository,
     private val classifier: ZoneClassifier,
+    private val photoStore: PhotoStore,
+    private val scanner: MeterScanner,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
     private val readingId: Long = savedStateHandle.get<Long>("readingId") ?: -1L
     private val isEdit = readingId >= 0
     private var existing: Reading? = null
+    private var unsavedPhotoPath: String? = null
 
     private val _state = MutableStateFlow(BpEntryUiState(isEdit = isEdit))
     val state: StateFlow<BpEntryUiState> = _state.asStateFlow()
+
+    fun photoFile(relativePath: String) = photoStore.fileFor(relativePath)
+
+    fun newCaptureTarget() = photoStore.newCaptureTarget()
 
     init {
         if (isEdit) {
@@ -72,17 +85,18 @@ class BpEntryViewModel @Inject constructor(
                         context = reading.bpContext,
                         measuredAt = reading.measuredAt,
                         note = reading.note.orEmpty(),
+                        photoPath = reading.photoPath,
                     )
                 }
             }
         }
     }
 
-    fun onSystolicChanged(text: String) = revalidate(_state.value.copy(systolicText = text))
+    fun onSystolicChanged(text: String) = revalidate(_state.value.copy(systolicText = text, scanStatus = null))
 
-    fun onDiastolicChanged(text: String) = revalidate(_state.value.copy(diastolicText = text))
+    fun onDiastolicChanged(text: String) = revalidate(_state.value.copy(diastolicText = text, scanStatus = null))
 
-    fun onPulseChanged(text: String) = revalidate(_state.value.copy(pulseText = text))
+    fun onPulseChanged(text: String) = revalidate(_state.value.copy(pulseText = text, scanStatus = null))
 
     fun onContextSelected(context: BpContext) {
         _state.value = _state.value.copy(context = context)
@@ -95,6 +109,44 @@ class BpEntryViewModel @Inject constructor(
 
     fun onNoteChanged(note: String) {
         _state.value = _state.value.copy(note = note)
+    }
+
+    /** Reads the monitor photo on-device: attaches it and pre-fills sys/dia/pulse. */
+    fun onPhotoSelected(uri: Uri) {
+        _state.value = _state.value.copy(scanStatus = ScanStatus.SCANNING)
+        viewModelScope.launch {
+            val bitmap = photoStore.loadBitmap(uri)
+            if (bitmap == null) {
+                _state.value = _state.value.copy(scanStatus = ScanStatus.VALUE_NOT_FOUND)
+                return@launch
+            }
+            if (unsavedPhotoPath != null) photoStore.delete(unsavedPhotoPath)
+            val path = photoStore.import(bitmap)
+            unsavedPhotoPath = path
+
+            val candidate = MeterValueParser.parseBp(scanner.recognize(bitmap))
+            if (candidate != null) {
+                revalidate(
+                    _state.value.copy(
+                        systolicText = candidate.systolic.toString(),
+                        diastolicText = candidate.diastolic.toString(),
+                        pulseText = candidate.pulse?.toString().orEmpty(),
+                        photoPath = path,
+                        scanStatus = ScanStatus.FILLED,
+                    )
+                )
+            } else {
+                _state.value = _state.value.copy(photoPath = path, scanStatus = ScanStatus.VALUE_NOT_FOUND)
+            }
+        }
+    }
+
+    fun onPhotoRemoved() {
+        if (_state.value.photoPath == unsavedPhotoPath) {
+            photoStore.delete(unsavedPhotoPath)
+            unsavedPhotoPath = null
+        }
+        _state.value = _state.value.copy(photoPath = null, scanStatus = null)
     }
 
     private fun revalidate(s: BpEntryUiState) {
@@ -154,8 +206,11 @@ class BpEntryViewModel @Inject constructor(
                 bpContext = context,
                 note = s.note.ifBlank { null },
                 zone = result.zone,
+                photoPath = s.photoPath,
             )
             if (isEdit) repository.update(reading) else repository.insert(reading)
+            existing?.photoPath?.takeIf { it != s.photoPath }?.let(photoStore::delete)
+            unsavedPhotoPath = null
             if (result.requiresBlockingAlert) {
                 _state.value = _state.value.copy(
                     saving = false,
@@ -175,5 +230,10 @@ class BpEntryViewModel @Inject constructor(
     /** CRISIS dialog second button: reopen the Add BP screen for a follow-up reading (spec §8). */
     fun onAddFollowUp() {
         _state.value = _state.value.copy(alert = null, goToFollowUp = true)
+    }
+
+    override fun onCleared() {
+        unsavedPhotoPath?.let(photoStore::delete)
+        super.onCleared()
     }
 }

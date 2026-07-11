@@ -62,6 +62,14 @@
     <string name="label_diastolic">Diastolic</string>
     <string name="label_pulse">Pulse (optional)</string>
     <string name="label_note">Note (optional)</string>
+    <string name="photo_label">Meter photo (optional)</string>
+    <string name="photo_scan_camera">Scan with camera</string>
+    <string name="photo_scan_gallery">From gallery</string>
+    <string name="photo_scanning">Reading the photo…</string>
+    <string name="photo_filled">Values filled from the photo — please verify before saving</string>
+    <string name="photo_not_found">Couldn\'t read values from the photo. It\'s attached — enter the numbers manually</string>
+    <string name="photo_remove">Remove photo</string>
+    <string name="photo_view">View photo</string>
     <string name="label_context">Context</string>
     <string name="label_time">Time</string>
     <string name="snackbar_saved">Reading saved — %1$s</string>

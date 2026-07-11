@@ -63,7 +63,17 @@ class AppFlowIntegrationTest {
         graph.readingRepository,
         graph.settingsRepository,
         graph.classifier,
+        graph.photoStore,
+        graph.scanner,
         readingId?.let { SavedStateHandle(mapOf("readingId" to it)) } ?: SavedStateHandle(),
+    )
+
+    private fun newBpVm() = BpEntryViewModel(
+        graph.readingRepository,
+        graph.classifier,
+        graph.photoStore,
+        graph.scanner,
+        SavedStateHandle(),
     )
 
     private fun awaitSaveFinished(vm: GlucoseEntryViewModel) =
@@ -168,7 +178,7 @@ class AppFlowIntegrationTest {
 
     @Test
     fun bpSaveFlow_crisisOffersFollowUpAndValidatesSysOverDia() = runBlocking {
-        val vm = BpEntryViewModel(graph.readingRepository, graph.classifier, SavedStateHandle())
+        val vm = newBpVm()
 
         // systolic <= diastolic errors on both fields (spec §6)
         vm.onSystolicChanged("80")
@@ -188,6 +198,33 @@ class AppFlowIntegrationTest {
         assertThat(vm.state.value.goToFollowUp).isTrue()
         val saved = graph.readingRepository.observeAll(DEFAULT_PROFILE_ID).first().single()
         assertThat(saved.zone).isEqualTo(Zone.CRISIS)
+    }
+
+    @Test
+    fun photoLifecycle_importPersistsWithReadingAndDeletesWithIt() = runBlocking {
+        val bitmap = android.graphics.Bitmap.createBitmap(64, 64, android.graphics.Bitmap.Config.ARGB_8888)
+        val path = graph.photoStore.import(bitmap)
+        assertThat(path).isNotNull()
+        assertThat(graph.photoStore.fileFor(path!!).exists()).isTrue()
+
+        val id = graph.readingRepository.insert(
+            com.dheyab.qiyas.domain.model.Reading(
+                profileId = DEFAULT_PROFILE_ID,
+                type = ReadingType.GLUCOSE,
+                measuredAt = System.currentTimeMillis(),
+                createdAt = System.currentTimeMillis(),
+                glucoseMgdl = 100f,
+                glucoseContext = GlucoseContext.FASTING,
+                zone = Zone.IN_RANGE,
+                photoPath = path,
+            )
+        )
+        assertThat(graph.readingRepository.getById(id)!!.photoPath).isEqualTo(path)
+
+        // Delete flow removes the photo file with the reading (as HistoryViewModel does).
+        graph.readingRepository.getById(id)?.photoPath?.let(graph.photoStore::delete)
+        graph.readingRepository.delete(id)
+        assertThat(graph.photoStore.fileFor(path).exists()).isFalse()
     }
 
     @Test
@@ -219,7 +256,7 @@ class AppFlowIntegrationTest {
             awaitSaveFinished(vm)
         }
         fun logBp(sys: String, dia: String, context: BpContext) {
-            val vm = BpEntryViewModel(graph.readingRepository, graph.classifier, SavedStateHandle())
+            val vm = newBpVm()
             vm.onSystolicChanged(sys)
             vm.onDiastolicChanged(dia)
             vm.onContextSelected(context)

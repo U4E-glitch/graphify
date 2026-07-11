@@ -2,7 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Hard Rule 7: this app must never request android.permission.INTERNET -->
+    <!-- Hard Rule 7: this app must never request android.permission.INTERNET.
+         ML Kit's AAR merges it in; the remove rule strips it from the final APK —
+         the OCR model is bundled, so recognition is fully on-device. -->
+    <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
@@ -34,6 +39,17 @@
                 android:name="autoStoreLocales"
                 android:value="true" />
         </service>
+
+        <!-- Camera-capture handoff for meter photos (app-private cache) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- WorkManager: on-demand initialization with Hilt worker factory -->
         <provider

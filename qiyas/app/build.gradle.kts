@@ -15,8 +15,8 @@ android {
         applicationId = "com.dheyab.qiyas"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.3"
+        versionCode = 4
+        versionName = "0.2.0"
     }
 
     signingConfigs {
@@ -89,6 +89,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.vico.compose.m3)
+    // On-device OCR (bundled model — no network at runtime, Hard Rule 7 intact)
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.androidx.exifinterface)
 
     debugImplementation(libs.compose.ui.tooling)
 

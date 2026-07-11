@@ -52,7 +52,8 @@ class AddGlucoseScreenUiTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         graph = TestGraph(ApplicationProvider.getApplicationContext<Context>())
         viewModel = GlucoseEntryViewModel(
-            graph.readingRepository, graph.settingsRepository, graph.classifier, SavedStateHandle(),
+            graph.readingRepository, graph.settingsRepository, graph.classifier,
+            graph.photoStore, graph.scanner, SavedStateHandle(),
         )
     }
 

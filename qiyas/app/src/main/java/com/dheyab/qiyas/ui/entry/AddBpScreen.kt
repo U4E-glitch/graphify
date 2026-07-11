@@ -116,6 +116,15 @@ fun AddBpScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            PhotoSection(
+                photoPath = state.photoPath,
+                scanStatus = state.scanStatus,
+                fileFor = viewModel::photoFile,
+                newCaptureTarget = viewModel::newCaptureTarget,
+                onPhotoSelected = viewModel::onPhotoSelected,
+                onPhotoRemoved = viewModel::onPhotoRemoved,
+            )
+
             Text(stringResource(R.string.label_context), style = MaterialTheme.typography.titleSmall)
             ContextChips(
                 options = BpContext.entries,

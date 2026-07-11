@@ -62,6 +62,14 @@
     <string name="label_diastolic">الانبساطي</string>
     <string name="label_pulse">النبض (اختياري)</string>
     <string name="label_note">ملاحظة (اختيارية)</string>
+    <string name="photo_label">صورة الجهاز (اختيارية)</string>
+    <string name="photo_scan_camera">مسح بالكاميرا</string>
+    <string name="photo_scan_gallery">من المعرض</string>
+    <string name="photo_scanning">جارٍ قراءة الصورة…</string>
+    <string name="photo_filled">تمت تعبئة القيم من الصورة — تحقق منها قبل الحفظ</string>
+    <string name="photo_not_found">تعذّرت قراءة القيم من الصورة. أُرفقت الصورة — أدخل الأرقام يدويًا</string>
+    <string name="photo_remove">إزالة الصورة</string>
+    <string name="photo_view">عرض الصورة</string>
     <string name="label_context">وقت القياس</string>
     <string name="label_time">الوقت</string>
     <string name="snackbar_saved">تم حفظ القراءة — %1$s</string>

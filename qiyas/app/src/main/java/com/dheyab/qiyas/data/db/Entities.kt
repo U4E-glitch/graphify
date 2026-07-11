@@ -39,6 +39,8 @@ data class ReadingEntity(
     @ColumnInfo(name = "bp_context") val bpContext: String?,
     @ColumnInfo(name = "note") val note: String?,
     @ColumnInfo(name = "zone") val zone: String,
+    /** App-private relative path of an attached meter photo (v2). */
+    @ColumnInfo(name = "photo_path") val photoPath: String? = null,
 )
 
 @Entity(

@@ -1,6 +1,7 @@
 package com.dheyab.qiyas.ui.history
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -158,6 +160,7 @@ fun HistoryScreen(
                             ReadingRow(
                                 reading = dayReadings[index],
                                 unit = unit,
+                                photoFile = viewModel::photoFile,
                                 onEdit = { onEdit(dayReadings[index]) },
                                 onDelete = { pendingDelete = dayReadings[index] },
                             )
@@ -192,10 +195,12 @@ fun HistoryScreen(
 private fun ReadingRow(
     reading: Reading,
     unit: GlucoseUnit,
+    photoFile: (String) -> java.io.File,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
+    var photoViewerOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -239,6 +244,21 @@ private fun ReadingRow(
                     Formatters.time(reading.measuredAt, currentLocale()),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        reading.photoPath?.let { path ->
+            com.dheyab.qiyas.ui.entry.PhotoThumbnail(
+                file = photoFile(path),
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable { photoViewerOpen = true },
+            )
+            if (photoViewerOpen) {
+                com.dheyab.qiyas.ui.entry.PhotoViewerDialog(
+                    file = photoFile(path),
+                    onDismiss = { photoViewerOpen = false },
                 )
             }
         }

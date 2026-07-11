@@ -25,7 +25,10 @@ enum class HistoryFilter { ALL, GLUCOSE, BP }
 class HistoryViewModel @Inject constructor(
     private val repository: ReadingRepository,
     settingsRepository: SettingsRepository,
+    private val photoStore: com.dheyab.qiyas.data.photo.PhotoStore,
 ) : ViewModel() {
+
+    fun photoFile(relativePath: String) = photoStore.fileFor(relativePath)
 
     private val _filter = MutableStateFlow(HistoryFilter.ALL)
     val filter: StateFlow<HistoryFilter> = _filter.asStateFlow()
@@ -48,6 +51,10 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun delete(id: Long) {
-        viewModelScope.launch { repository.delete(id) }
+        viewModelScope.launch {
+            // The attached photo goes with the reading.
+            repository.getById(id)?.photoPath?.let(photoStore::delete)
+            repository.delete(id)
+        }
     }
 }

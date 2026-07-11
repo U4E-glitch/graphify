@@ -27,6 +27,7 @@ object AppModule {
     fun provideDatabase(@ApplicationContext context: Context): QiyasDatabase =
         Room.databaseBuilder(context, QiyasDatabase::class.java, "qiyas.db")
             .addCallback(QiyasDatabase.SeedCallback())
+            .addMigrations(com.dheyab.qiyas.data.db.MIGRATION_1_2)
             .build()
 
     @Provides
