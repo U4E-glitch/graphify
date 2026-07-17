@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
@@ -206,7 +205,7 @@ fun DashboardScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 ExtendedFloatingActionButton(
                     onClick = onAddGlucose,
-                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    icon = { Icon(Icons.Filled.WaterDrop, contentDescription = null) },
                     text = {
                         Text(
                             stringResource(R.string.dash_add_glucose),
@@ -219,7 +218,7 @@ fun DashboardScreen(
                 )
                 ExtendedFloatingActionButton(
                     onClick = onAddBp,
-                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    icon = { Icon(Icons.Filled.Favorite, contentDescription = null) },
                     text = {
                         Text(
                             stringResource(R.string.dash_add_bp),
