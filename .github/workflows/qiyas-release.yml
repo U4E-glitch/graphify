@@ -45,7 +45,7 @@ jobs:
       # Play AAB: signed with the PRIVATE upload key from repo secrets.
       # Skipped when the secrets are not configured.
       - name: Build Play App Bundle (upload key from secrets)
-        if: ${{ env.UPLOAD_KEY_B64 != '' }}
+        if: ${{ env.UPLOAD_KEY_B64 != '' && env.UPLOAD_KEY_PASSWORD != '' }}
         working-directory: qiyas
         env:
           QIYAS_KEYSTORE: /tmp/qiyas-upload.jks
@@ -53,7 +53,8 @@ jobs:
           QIYAS_KEY_PASSWORD: ${{ env.UPLOAD_KEY_PASSWORD }}
           QIYAS_KEY_ALIAS: qiyas-upload
         run: |
-          echo "$UPLOAD_KEY_B64" | base64 -d > /tmp/qiyas-upload.jks
+          # tolerate line-wraps/CRLF introduced when pasting the secret
+          echo "$UPLOAD_KEY_B64" | tr -d ' \t\r\n' | base64 -d > /tmp/qiyas-upload.jks
           ./gradlew --no-daemon :app:bundleRelease
           rm -f /tmp/qiyas-upload.jks
 
