@@ -17,8 +17,8 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     env:
-      UPLOAD_KEY_B64: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_B64 }}
-      UPLOAD_KEY_PASSWORD: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_PASSWORD }}
+      UPLOAD_KEY_B64: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_B64 || vars.QIYAS_UPLOAD_KEYSTORE_B64 }}
+      UPLOAD_KEY_PASSWORD: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_PASSWORD || vars.QIYAS_UPLOAD_KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +28,13 @@ jobs:
           java-version: "17"
 
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Upload-key diagnostics
+        run: |
+          echo "secret B64 set: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_B64 != '' }}"
+          echo "secret PASSWORD set: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_PASSWORD != '' }}"
+          echo "var B64 set: ${{ vars.QIYAS_UPLOAD_KEYSTORE_B64 != '' }}"
+          echo "var PASSWORD set: ${{ vars.QIYAS_UPLOAD_KEYSTORE_PASSWORD != '' }}"
 
       # Sideload APK: signed with the repo keystore so existing Obtainium
       # installs keep their update chain.
