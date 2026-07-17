@@ -16,6 +16,9 @@ permissions:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    env:
+      UPLOAD_KEY_B64: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_B64 }}
+      UPLOAD_KEY_PASSWORD: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -26,11 +29,28 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build signed release APK
+      # Sideload APK: signed with the repo keystore so existing Obtainium
+      # installs keep their update chain.
+      - name: Build signed release APK (sideload channel)
         working-directory: qiyas
         run: ./gradlew --no-daemon :app:assembleRelease
 
-      - name: Determine version and rename APK
+      # Play AAB: signed with the PRIVATE upload key from repo secrets.
+      # Skipped when the secrets are not configured.
+      - name: Build Play App Bundle (upload key from secrets)
+        if: ${{ env.UPLOAD_KEY_B64 != '' }}
+        working-directory: qiyas
+        env:
+          QIYAS_KEYSTORE: /tmp/qiyas-upload.jks
+          QIYAS_KEYSTORE_PASSWORD: ${{ env.UPLOAD_KEY_PASSWORD }}
+          QIYAS_KEY_PASSWORD: ${{ env.UPLOAD_KEY_PASSWORD }}
+          QIYAS_KEY_ALIAS: qiyas-upload
+        run: |
+          echo "$UPLOAD_KEY_B64" | base64 -d > /tmp/qiyas-upload.jks
+          ./gradlew --no-daemon :app:bundleRelease
+          rm -f /tmp/qiyas-upload.jks
+
+      - name: Determine version and collect artifacts
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             VERSION="v${{ inputs.version }}"
@@ -38,13 +58,24 @@ jobs:
             VERSION="${GITHUB_REF_NAME#qiyas-}"
           fi
           cp qiyas/app/build/outputs/apk/release/app-release.apk "qiyas-${VERSION}.apk"
-          echo "APK_NAME=qiyas-${VERSION}.apk" >> "$GITHUB_ENV"
+          FILES="qiyas-${VERSION}.apk"
+          if [ -f qiyas/app/build/outputs/bundle/release/app-release.aab ]; then
+            cp qiyas/app/build/outputs/bundle/release/app-release.aab "qiyas-${VERSION}-play.aab"
+            FILES="$FILES qiyas-${VERSION}-play.aab"
+          else
+            echo "NOTE: Play upload-key secrets not configured — AAB skipped."
+          fi
           echo "RELEASE_TAG=qiyas-${VERSION}" >> "$GITHUB_ENV"
+          {
+            echo "RELEASE_FILES<<EOF"
+            for f in $FILES; do echo "$f"; done
+            echo "EOF"
+          } >> "$GITHUB_ENV"
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           name: Qiyas ${{ env.RELEASE_TAG }}
-          files: ${{ env.APK_NAME }}
+          files: ${{ env.RELEASE_FILES }}
           generate_release_notes: true
