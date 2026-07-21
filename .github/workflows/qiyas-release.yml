@@ -45,17 +45,25 @@ jobs:
       # Play AAB: signed with the PRIVATE upload key from repo secrets.
       # Skipped when the secrets are not configured.
       - name: Build Play App Bundle (upload key from secrets)
-        if: ${{ env.UPLOAD_KEY_B64 != '' && env.UPLOAD_KEY_PASSWORD != '' }}
+        if: ${{ env.UPLOAD_KEY_B64 != '' }}
         working-directory: qiyas
         env:
           QIYAS_KEYSTORE: /tmp/qiyas-upload.jks
-          QIYAS_KEYSTORE_PASSWORD: ${{ env.UPLOAD_KEY_PASSWORD }}
-          QIYAS_KEY_PASSWORD: ${{ env.UPLOAD_KEY_PASSWORD }}
           QIYAS_KEY_ALIAS: qiyas-upload
         run: |
           # tolerate line-wraps/CRLF introduced when pasting the secret
           echo "$UPLOAD_KEY_B64" | tr -d ' \t\r\n' | base64 -d > /tmp/qiyas-upload.jks
-          ./gradlew --no-daemon :app:bundleRelease
+          if [ -n "$UPLOAD_KEY_PASSWORD" ]; then
+            PASSWORD="$UPLOAD_KEY_PASSWORD"
+          else
+            # No password secret: decrypt the committed password file with a key
+            # derived from the keystore bytes (held only in the secret).
+            DERIVED_KEY=$(sha256sum /tmp/qiyas-upload.jks | cut -d' ' -f1)
+            PASSWORD=$(openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:$DERIVED_KEY" -in keystore/upload-password.enc)
+          fi
+          keytool -list -keystore /tmp/qiyas-upload.jks -storepass "$PASSWORD" -alias qiyas-upload > /dev/null \
+            && echo "upload keystore verified OK" || { echo "keystore/password verification FAILED"; exit 1; }
+          QIYAS_KEYSTORE_PASSWORD="$PASSWORD" QIYAS_KEY_PASSWORD="$PASSWORD" ./gradlew --no-daemon :app:bundleRelease
           rm -f /tmp/qiyas-upload.jks
 
       - name: Determine version and collect artifacts
