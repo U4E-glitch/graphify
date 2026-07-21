@@ -17,6 +17,9 @@ jobs:
   build-and-release:
     runs-on: ubuntu-latest
     env:
+      # Preferred: short passphrase that decrypts keystore/upload-bundle.enc
+      UPLOAD_PASSPHRASE: ${{ secrets.QIYAS_UPLOAD_KEY || vars.QIYAS_UPLOAD_KEY }}
+      # Legacy fallback: keystore itself as base64 + separate password secret
       UPLOAD_KEY_B64: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_B64 || vars.QIYAS_UPLOAD_KEYSTORE_B64 }}
       UPLOAD_KEY_PASSWORD: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_PASSWORD || vars.QIYAS_UPLOAD_KEYSTORE_PASSWORD }}
     steps:
@@ -31,10 +34,9 @@ jobs:
 
       - name: Upload-key diagnostics
         run: |
-          echo "secret B64 set: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_B64 != '' }}"
-          echo "secret PASSWORD set: ${{ secrets.QIYAS_UPLOAD_KEYSTORE_PASSWORD != '' }}"
-          echo "var B64 set: ${{ vars.QIYAS_UPLOAD_KEYSTORE_B64 != '' }}"
-          echo "var PASSWORD set: ${{ vars.QIYAS_UPLOAD_KEYSTORE_PASSWORD != '' }}"
+          echo "passphrase secret set: ${{ env.UPLOAD_PASSPHRASE != '' }}"
+          echo "legacy b64 secret set: ${{ env.UPLOAD_KEY_B64 != '' }}"
+          echo "legacy password secret set: ${{ env.UPLOAD_KEY_PASSWORD != '' }}"
 
       # Sideload APK: signed with the repo keystore so existing Obtainium
       # installs keep their update chain.
@@ -42,29 +44,29 @@ jobs:
         working-directory: qiyas
         run: ./gradlew --no-daemon :app:assembleRelease
 
-      # Play AAB: signed with the PRIVATE upload key from repo secrets.
-      # Skipped when the secrets are not configured.
-      - name: Build Play App Bundle (upload key from secrets)
-        if: ${{ env.UPLOAD_KEY_B64 != '' }}
+      # Play AAB: signed with the PRIVATE upload key. The keystore ships
+      # encrypted in the repo; the short passphrase secret unlocks it.
+      - name: Build Play App Bundle
+        if: ${{ env.UPLOAD_PASSPHRASE != '' || (env.UPLOAD_KEY_B64 != '' && env.UPLOAD_KEY_PASSWORD != '') }}
         working-directory: qiyas
         env:
           QIYAS_KEYSTORE: /tmp/qiyas-upload.jks
           QIYAS_KEY_ALIAS: qiyas-upload
         run: |
-          # tolerate line-wraps/CRLF introduced when pasting the secret
-          echo "$UPLOAD_KEY_B64" | tr -d ' \t\r\n' | base64 -d > /tmp/qiyas-upload.jks
-          if [ -n "$UPLOAD_KEY_PASSWORD" ]; then
-            PASSWORD="$UPLOAD_KEY_PASSWORD"
+          set -euo pipefail
+          if [ -n "$UPLOAD_PASSPHRASE" ]; then
+            PHRASE=$(printf '%s' "$UPLOAD_PASSPHRASE" | tr -d ' \t\r\n')
+            openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:$PHRASE" \
+              -in keystore/upload-bundle.enc | tar -x -C /tmp
+            PASSWORD=$(cat /tmp/qiyas-upload-password.txt)
           else
-            # No password secret: decrypt the committed password file with a key
-            # derived from the keystore bytes (held only in the secret).
-            DERIVED_KEY=$(sha256sum /tmp/qiyas-upload.jks | cut -d' ' -f1)
-            PASSWORD=$(openssl enc -d -aes-256-cbc -pbkdf2 -pass "pass:$DERIVED_KEY" -in keystore/upload-password.enc)
+            echo "$UPLOAD_KEY_B64" | tr -d ' \t\r\n' | base64 -d > /tmp/qiyas-upload.jks
+            PASSWORD="$UPLOAD_KEY_PASSWORD"
           fi
           keytool -list -keystore /tmp/qiyas-upload.jks -storepass "$PASSWORD" -alias qiyas-upload > /dev/null \
-            && echo "upload keystore verified OK" || { echo "keystore/password verification FAILED"; exit 1; }
+            && echo "upload keystore verified OK" || { echo "keystore/passphrase verification FAILED"; exit 1; }
           QIYAS_KEYSTORE_PASSWORD="$PASSWORD" QIYAS_KEY_PASSWORD="$PASSWORD" ./gradlew --no-daemon :app:bundleRelease
-          rm -f /tmp/qiyas-upload.jks
+          rm -f /tmp/qiyas-upload.jks /tmp/qiyas-upload-password.txt
 
       - name: Determine version and collect artifacts
         run: |
@@ -79,7 +81,7 @@ jobs:
             cp qiyas/app/build/outputs/bundle/release/app-release.aab "qiyas-${VERSION}-play.aab"
             FILES="$FILES qiyas-${VERSION}-play.aab"
           else
-            echo "NOTE: Play upload-key secrets not configured — AAB skipped."
+            echo "NOTE: upload-key secret not configured — AAB skipped."
           fi
           echo "RELEASE_TAG=qiyas-${VERSION}" >> "$GITHUB_ENV"
           {
