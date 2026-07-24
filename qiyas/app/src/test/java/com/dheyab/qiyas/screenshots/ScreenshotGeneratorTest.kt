@@ -203,6 +203,32 @@ class ScreenshotGeneratorTest {
 
     @Test
     @Config(qualifiers = "+ar")
+    fun add_glucose_ar() {
+        val vm = GlucoseEntryViewModel(
+            graph.readingRepository, graph.settingsRepository, graph.classifier,
+            graph.photoStore, graph.scanner, SavedStateHandle(),
+        )
+        compose.setContent {
+            QiyasTheme { AddGlucoseScreen(onDone = {}, onBack = {}, viewModel = vm) }
+        }
+        vm.onValueChanged("112")
+        vm.onContextSelected(GlucoseContext.FASTING)
+        capture("07_add_glucose_ar")
+    }
+
+    @Test
+    @Config(qualifiers = "+ar")
+    fun history_ar() {
+        val vm = HistoryViewModel(graph.readingRepository, graph.settingsRepository, graph.photoStore)
+        compose.setContent {
+            QiyasTheme { HistoryScreen(null, {}, {}, {}, viewModel = vm) }
+        }
+        await { vm.readings.value.isNotEmpty() }
+        capture("08_history_ar")
+    }
+
+    @Test
+    @Config(qualifiers = "+ar")
     fun report_ar() {
         val reportRepository = ReportRepository(
             graph.readingRepository, graph.database.weeklyReportDao(), graph.settingsRepository,
