@@ -299,3 +299,27 @@ def test_cli_api_key_from_env(monkeypatch):
     monkeypatch.setattr(serve_mod, "serve_http", lambda gp, **k: captured.update(**k))
     serve_mod._main(["g.json", "--transport", "http"])
     assert captured["api_key"] == "from-env"
+
+
+def test_mcp_extra_is_capped_below_2():
+    """The `mcp` extra must stay capped below 2.0 (#1729).
+
+    mcp 2.0 removed the low-level ``Server`` decorator API
+    (``@server.list_tools`` / ``call_tool`` / ``list_resources`` /
+    ``read_resource``) that :func:`graphify.serve._build_server` is built on, so
+    an uncapped requirement resolved 2.0.0 on a fresh install and every server
+    start — stdio and http alike — died at import with a misleading
+    "mcp not installed" error. Lift the cap only together with a port to the
+    2.x ``add_request_handler`` API.
+    """
+    import re
+
+    root = Path(__file__).resolve().parent.parent
+    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
+    for extra in ("mcp", "all"):
+        line = re.search(rf'^{extra} = \[(.*)$', pyproject, re.MULTILINE)
+        assert line, f"could not find the `{extra}` extra in pyproject.toml"
+        assert '"mcp<2"' in line.group(1), (
+            f"the `{extra}` extra must pin mcp<2 until serve.py is ported to the "
+            f"mcp 2.x handler API; got: {line.group(1)}"
+        )
