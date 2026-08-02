@@ -780,7 +780,11 @@ def _build_server(graph_path: str):
     try:
         from mcp.server import Server
         from mcp import types
-        from mcp.types import AnyUrl
+        # AnyUrl is a pydantic type that mcp 1.x happened to re-export from
+        # mcp.types; mcp 2.x dropped the re-export. pydantic is a hard dependency
+        # of mcp either way, so take it from the real source and stay version-
+        # agnostic (#1729).
+        from pydantic import AnyUrl
     except ImportError as e:
         raise ImportError('mcp not installed. Run: pip install "graphifyy[mcp]"') from e
 

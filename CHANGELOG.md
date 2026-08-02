@@ -2,6 +2,11 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## Unreleased
+
+- Fix: the MCP server starts again on a fresh install (#1729). The `mcp` extra was unpinned, so `pip install "graphifyy[mcp]"` resolved the new mcp 2.0.0 — which removed the low-level `Server` decorator API (`@server.list_tools`/`call_tool`/`list_resources`/`read_resource`) that `serve.py` is built on, and dropped the `AnyUrl` re-export from `mcp.types`. Every server start, stdio and `--transport http` alike, died at import behind a misleading "mcp not installed. Run: pip install ..." message that sent users back to reinstall the package they already had. The extra (and `[all]`) now pin `mcp<2`, and `AnyUrl` is imported from pydantic — its actual source, and a hard dependency of mcp under either major — so the import is version-agnostic. Porting `serve.py` to the mcp 2.x `add_request_handler` API is the follow-up that lifts the cap; a test guards the pin until then.
+- Docs: added a README section on reaching a graphify MCP server running on a laptop from outside its network — that the HTTP transport is the listening half only (a laptop behind NAT still needs a Tailscale/Cloudflare/ngrok/SSH tunnel to be dialable), how to generate and verify the api-key gate before exposing the port, and that the bearer key is the only authentication, so it wants a TLS-terminating tunnel rather than plain `http://`.
+
 ## 0.9.10 (2026-07-08)
 
 - Fix: TS/JS member calls on a builtin-typed receiver no longer collapse onto a same-named user symbol (#1726). `_resolve_typescript_member_calls` matched a receiver's type to a definition by casefolded label, so `x: Date; x.getTime()` bound the caller to a user `class DATE`/`const DATE` in another file — inventing hundreds of phantom `references` edges and a false god node. Builtin-global receiver types (`Date`, `Promise`, `Map`, ...) are now skipped, mirroring the cross-file call guard; genuine user types are unaffected.

@@ -474,6 +474,23 @@ docker run -p 8080:8080 -v "$(pwd)/graphify-out:/data" graphify \
   /data/graph.json --transport http --host 0.0.0.0 --api-key "$SECRET"
 ```
 
+### Reaching a laptop from outside its network
+
+The HTTP transport is the *server* half only: your laptop listens, and remote clients dial in. A laptop on home or office Wi-Fi has no public address, so binding `0.0.0.0` makes it reachable on the LAN but not from the internet — you still need a tunnel (Tailscale, Cloudflare Tunnel, ngrok, or an SSH reverse forward) to publish the port.
+
+```bash
+# on the laptop — always set a key before leaving loopback
+export GRAPHIFY_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+python -m graphify.serve graphify-out/graph.json --transport http --host 0.0.0.0 --port 8080
+
+# verify the gate locally before exposing it: 401 without a key, 200 with one
+curl -s -o /dev/null -w '%{http_code}\n' -X POST http://127.0.0.1:8080/mcp \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"c","version":"0"}}}'
+```
+
+Then point the remote client at `https://<tunnel-host>/mcp` with `Authorization: Bearer $GRAPHIFY_API_KEY`. Prefer a tunnel that terminates TLS: the api-key is a bearer token, so plain `http://` over the open internet exposes both the key and your graph. The key gate is the only authentication — there is no per-user access control, so anyone holding the key can read the whole graph.
+
 > **WSL / Linux note:** Ubuntu ships `python3`, not `python`. Use a venv to avoid conflicts:
 > ```bash
 > python3 -m venv .venv && .venv/bin/pip install "graphifyy[mcp]"
