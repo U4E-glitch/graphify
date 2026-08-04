@@ -1,0 +1,9 @@
+# Build output and machine-specific paths
+build/
+.gradle/
+local.properties
+*.jks
+*.keystore
+.idea/
+captures/
+.kotlin/

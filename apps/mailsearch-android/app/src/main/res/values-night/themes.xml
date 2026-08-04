@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.MailSearch" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/ic_launcher_background</item>
+        <item name="android:windowBackground">#14161A</item>
+    </style>
+</resources>
