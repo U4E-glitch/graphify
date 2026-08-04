@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Mail Search</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true" class="brand-mark">
+      <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h9A2.5 2.5 0 0 1 17 6.5v5.2a6 6 0 0 0-6.9 7.3H5.5A2.5 2.5 0 0 1 3 16.5z"/>
+      <path d="M3.6 6l6.4 4.6L16.4 6" fill="none" stroke-width="1.6"/>
+      <circle cx="16.5" cy="16.5" r="3.4" fill="none" stroke-width="1.8"/>
+      <path d="M19 19l2.4 2.4" fill="none" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span>Mail Search</span>
+  </div>
+  <div class="topbar-right">
+    <span id="account" class="account"></span>
+    <button id="sync-btn" class="btn" type="button" title="Fetch new mail">Sync</button>
+    <button id="menu-btn" class="btn ghost" type="button" aria-haspopup="true" title="More">⋯</button>
+    <div id="menu" class="menu" hidden>
+      <button type="button" data-action="full-sync">Full re-sync</button>
+      <button type="button" data-action="reset">Erase local index</button>
+      <button type="button" data-action="logout">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<div id="sync-bar" class="sync-bar" hidden>
+  <div class="sync-fill"></div>
+  <span id="sync-text"></span>
+  <button id="sync-cancel" class="link" type="button">stop</button>
+</div>
+
+<main id="main">
+
+  <!-- Sign-in -->
+  <section id="signin" class="panel center" hidden>
+    <h1>Connect your Outlook mailbox</h1>
+    <p class="muted">
+      Your mail is downloaded to this computer and indexed locally. Searching never
+      leaves this machine.
+    </p>
+    <button id="signin-btn" class="btn primary big" type="button">Connect Outlook</button>
+
+    <div id="devicecode" class="devicecode" hidden>
+      <ol>
+        <li>Open <a id="verify-link" href="#" target="_blank" rel="noopener noreferrer">microsoft.com/devicelogin</a></li>
+        <li>Enter this code:
+          <span class="code-row">
+            <code id="user-code"></code>
+            <button id="copy-code" class="btn small" type="button">Copy</button>
+          </span>
+        </li>
+        <li>Sign in and approve access to your mail.</li>
+      </ol>
+      <p class="muted small" id="login-hint">Waiting for approval…</p>
+    </div>
+    <p id="signin-error" class="error" hidden></p>
+  </section>
+
+  <!-- Search -->
+  <section id="search" class="search" hidden>
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" class="search-icon" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5" fill="none" stroke-width="2"/>
+        <path d="M16 16l4.5 4.5" fill="none" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <input id="q" type="search" autocomplete="off" spellcheck="false"
+             placeholder="Search everything in your mail…" aria-label="Search your mail">
+      <button id="clear" class="clear" type="button" hidden aria-label="Clear search">×</button>
+    </div>
+
+    <div class="toolbar">
+      <div id="summary" class="summary muted"></div>
+      <div class="toolbar-right">
+        <label class="checkbox" title="Include Junk Email and Deleted Items">
+          <input id="include-all" type="checkbox"> junk &amp; deleted
+        </label>
+        <select id="sort" aria-label="Sort order">
+          <option value="relevance">Best match</option>
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="facets" class="facets" hidden></div>
+
+    <div class="layout">
+      <div id="results" class="results" tabindex="-1"></div>
+      <aside id="reader" class="reader" hidden>
+        <button id="reader-close" class="reader-close" type="button" aria-label="Close">×</button>
+        <h2 id="reader-subject"></h2>
+        <div id="reader-meta" class="reader-meta"></div>
+        <div class="reader-actions">
+          <a id="reader-open" class="btn small" href="#" target="_blank" rel="noopener noreferrer">Open in Outlook</a>
+        </div>
+        <pre id="reader-body" class="reader-body"></pre>
+      </aside>
+    </div>
+
+    <div id="empty" class="empty" hidden></div>
+    <button id="more" class="btn wide" type="button" hidden>Show more results</button>
+  </section>
+</main>
+
+<footer class="hints">
+  <span><kbd>/</kbd> search</span>
+  <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+  <span><kbd>Enter</kbd> open</span>
+  <span class="grow"></span>
+  <span class="syntax">
+    <code>from:alice</code> <code>subject:invoice</code> <code>"exact phrase"</code>
+    <code>-exclude</code> <code>after:2024-01-01</code> <code>has:attachment</code> <code>is:unread</code>
+  </span>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

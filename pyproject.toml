@@ -128,6 +128,9 @@ norecursedirs = [
     "graphify-benchmark", "graphify_eval", "graphify_test",
     "worked", "llm-stack-corpus", "llm-stack-demo", "product-site",
     "scripts", "ebook", ".github", "dist", "build",
+    # Standalone applications under apps/ ship their own test suites and are
+    # run from their own directory (see apps/*/README.md).
+    "apps",
 ]
 
 [tool.bandit]

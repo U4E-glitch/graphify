@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mailsearch"
+version = "0.1.0"
+description = "A private, local search engine for your Outlook mailbox"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["outlook", "email", "search", "microsoft-graph", "sqlite", "fts5"]
+# Deliberately empty: the app runs on the Python standard library alone, so
+# `python -m mailsearch` works without installing anything.
+dependencies = []
+
+[project.scripts]
+mailsearch = "mailsearch.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[tool.setuptools]
+packages = ["mailsearch"]
+
+[tool.setuptools.package-data]
+mailsearch = ["web/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
