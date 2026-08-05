@@ -190,3 +190,21 @@ def test_sign_out_forgets_the_tokens(config):
     auth.sign_out()
     assert not auth.is_signed_in
     assert not config.token_path.exists()
+
+
+def test_a_personal_accounts_only_registration_is_explained(config):
+    """Microsoft's userAudience complaint, turned into the command that fixes it."""
+    description = (
+        "AADSTS500200: The request is not valid for the application's 'userAudience' "
+        "configuration. In order to use /common/ endpoint, the application must not be "
+        "configured with 'Consumer' as the user audience."
+    )
+    auth = Authenticator(
+        config,
+        transport=FakeTransport(
+            lambda *a: (400, {"error": "invalid_request", "error_description": description})
+        ),
+    )
+    with pytest.raises(AuthError, match="--tenant consumers"):
+        auth.begin_device_login()
+

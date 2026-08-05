@@ -203,7 +203,7 @@ class Authenticator:
             {"client_id": self.config.client_id, "scope": self.config.scope_string},
         )
         if not response.ok:
-            raise AuthError(HttpError(response).args[0])
+            raise AuthError(_friendly(HttpError(response)))
         payload = response.json() or {}
         try:
             interval = int(payload.get("interval", 5))
@@ -324,6 +324,14 @@ class Authenticator:
 def _friendly(error: HttpError) -> str:
     payload = error.payload
     description = payload.get("error_description")
+    if isinstance(description, str) and "userAudience" in description:
+        # The registration accepts personal Microsoft accounts only, so it has
+        # to be asked at /consumers/ rather than the /common/ default.
+        return (
+            "This app registration is for personal Microsoft accounts only. Re-run "
+            "setup with the matching endpoint:\n"
+            "  mailsearch setup --client-id <your-id> --tenant consumers"
+        )
     if isinstance(description, str) and description:
         # Microsoft's descriptions carry a trace id and timestamp on later
         # lines; the first line is the part a human needs.

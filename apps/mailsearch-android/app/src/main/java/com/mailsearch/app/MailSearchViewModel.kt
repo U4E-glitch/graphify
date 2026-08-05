@@ -110,7 +110,23 @@ class MailSearchViewModel(app: Application) : AndroidViewModel(app) {
         pending = null
         when {
             !error.isNullOrEmpty() -> {
-                val text = description?.lineSequence()?.firstOrNull()?.trim().orEmpty()
+                val full = description.orEmpty()
+                val text = full.lineSequence().firstOrNull()?.trim().orEmpty()
+
+                // A registration that only accepts personal Microsoft accounts
+                // has to be asked at /consumers/ rather than /common/. Correct
+                // the setting rather than making the user decode the message.
+                val fix = AuthClient.tenantFixFor(full, storage.tenant)
+                if (fix.isNotEmpty()) {
+                    storage.tenant = fix
+                    state.update {
+                        it.copy(signIn = SignInState.Failed(
+                            "Your app registration is for personal Microsoft accounts only. " +
+                                "Adjusted the setting to match — tap Sign in with Outlook again."
+                        ))
+                    }
+                    return
+                }
                 state.update {
                     it.copy(signIn = SignInState.Failed(
                         text.ifEmpty { if (error == "access_denied") "Sign-in was cancelled." else error }

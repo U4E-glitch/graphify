@@ -92,8 +92,27 @@ class AuthClient(
     }
 
     companion object {
+        /**
+         * Microsoft's answer when the registration accepts personal accounts
+         * only but the app asked at the /common/ endpoint.
+         *
+         * "common" is for registrations that take both personal and work
+         * accounts; a personal-only registration has to be asked at
+         * /consumers/. Recognising this means the app can correct itself
+         * instead of showing the raw complaint.
+         */
+        fun tenantFixFor(description: String, currentTenant: String): String {
+            if (currentTenant != DEFAULT_TENANT) return ""
+            val text = description.lowercase()
+            val audienceProblem = "useraudience" in text ||
+                ("consumer" in text && "common" in text)
+            return if (audienceProblem) TENANT_CONSUMERS else ""
+        }
+
         const val DEFAULT_AUTHORITY = "https://login.microsoftonline.com"
         const val DEFAULT_TENANT = "common"
+        /** The endpoint for registrations that accept personal accounts only. */
+        const val TENANT_CONSUMERS = "consumers"
         const val DEFAULT_REDIRECT = "mailsearch://auth"
 
         /** Read-only mail access, plus the refresh token that avoids re-asking. */

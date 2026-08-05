@@ -82,4 +82,36 @@ class AuthTest {
         assertFalse(Tokens("at", "rt", now + 60_000).isFresh(now))
         assertFalse(Tokens("", "rt", now + 40 * 60_000).isFresh(now))
     }
+
+    // -- the audience mismatch --------------------------------------------
+    private val AUDIENCE_ERROR =
+        "AADSTS500200: The request is not valid for the application's 'userAudience' " +
+            "configuration. In order to use /common/ endpoint, the application must not be " +
+            "configured with 'Consumer' as the user audience. The userAudience should be " +
+            "configured with 'All' to use /common/ endpoint."
+
+    @Test
+    fun `a personal-accounts-only registration is redirected to the consumers endpoint`() {
+        assertEquals("consumers", AuthClient.tenantFixFor(AUDIENCE_ERROR, "common"))
+    }
+
+    @Test
+    fun `a tenant the user chose deliberately is left alone`() {
+        assertEquals("", AuthClient.tenantFixFor(AUDIENCE_ERROR, "consumers"))
+        assertEquals("", AuthClient.tenantFixFor(AUDIENCE_ERROR, "contoso.onmicrosoft.com"))
+    }
+
+    @Test
+    fun `unrelated sign-in failures do not change the tenant`() {
+        assertEquals("", AuthClient.tenantFixFor("AADSTS50011: redirect mismatch", "common"))
+        assertEquals("", AuthClient.tenantFixFor("", "common"))
+        assertEquals("", AuthClient.tenantFixFor("The user cancelled the request", "common"))
+    }
+
+    @Test
+    fun `the consumers endpoint is what gets asked once it is set`() {
+        val url = AuthClient("c", tenant = AuthClient.TENANT_CONSUMERS)
+            .authorizationUrl(Pkce.generate(), "s")
+        assertTrue(url.contains("/consumers/oauth2/v2.0/authorize"))
+    }
 }

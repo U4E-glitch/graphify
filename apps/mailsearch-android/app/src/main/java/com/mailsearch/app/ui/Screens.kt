@@ -94,7 +94,13 @@ fun SetupScreen(
             value = tenant,
             onValueChange = { tenant = it },
             label = { Text("Tenant") },
-            supportingText = { Text("Leave as \"common\" unless your workplace told you otherwise.") },
+            supportingText = {
+                Text(
+                    "\"common\" for a registration that accepts both personal and work " +
+                        "accounts, \"consumers\" for one that accepts personal accounts only, " +
+                        "or your organisation's tenant id."
+                )
+            },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -109,6 +115,12 @@ fun SetupScreen(
                 )
                 Text("• API permissions → Microsoft Graph → Mail.Read, User.Read, offline_access",
                     style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "• Supported account types decides the Tenant above: pick \"any " +
+                        "organizational directory and personal Microsoft accounts\" to use " +
+                        "\"common\". If you picked personal accounts only, use \"consumers\".",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
         Button(
