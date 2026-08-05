@@ -297,6 +297,25 @@ class Store:
             self._conn.execute(f"DELETE FROM messages WHERE rid IN ({placeholders})", chunk)
         return len(rids)
 
+    def delete_missing_from_folder(self, folder_id: str, keep_ids: Iterable[str]) -> int:
+        """Drop indexed mail that is no longer in a folder we just re-read.
+
+        A local mail file gives no deletion events, so after re-reading one the
+        messages it no longer contains have to be reconciled away.
+        """
+        keep = set(keep_ids)
+        with self._lock:
+            gone = [
+                row["rid"]
+                for row in self._conn.execute(
+                    "SELECT rid, id FROM messages WHERE folder_id = ?", (folder_id,)
+                )
+                if row["id"] not in keep
+            ]
+            removed = self._delete_rids(gone)
+            self._conn.commit()
+        return removed
+
     def message(self, message_id: str) -> dict[str, Any] | None:
         """One message with its full body, for the reading pane."""
         with self._lock:

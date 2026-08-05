@@ -12,7 +12,8 @@
     "copy-code", "login-hint", "search", "q", "clear", "summary", "results", "empty",
     "more", "facets", "reader", "reader-subject", "reader-meta", "reader-body",
     "reader-open", "reader-close", "account", "sync-btn", "sync-bar", "sync-text",
-    "sync-cancel", "menu", "menu-btn", "include-all", "sort"
+    "sync-cancel", "menu", "menu-btn", "include-all", "sort",
+    "lock", "lock-form", "lock-error", "passcode"
   ].forEach(function (id) { el[id] = document.getElementById(id); });
 
   var state = {
@@ -22,6 +23,8 @@
     results: [],
     active: -1,
     signedIn: false,
+    locked: false,
+    source: "graph",
     syncing: false,
     seq: 0,
     loginTimer: null,
@@ -47,6 +50,7 @@
           var error = new Error(data.error || ("Request failed (" + response.status + ")"));
           error.status = response.status;
           error.needsLogin = !!data.needs_login;
+          error.needsPasscode = !!data.needs_passcode;
           throw error;
         }
         return data;
@@ -87,13 +91,19 @@
   /* -- status ----------------------------------------------------------- */
   function refreshStatus() {
     return api("/api/status").then(function (status) {
+      state.locked = false;
       state.signedIn = status.signed_in;
+      state.source = status.source || "graph";
+      show(el["lock"], false);
       el["account"].textContent = status.account || "";
       show(el["search"], status.signed_in);
       show(el["signin"], !status.signed_in);
       // Syncing and the account menu mean nothing until there is an account.
       show(el["sync-btn"], status.signed_in);
       show(el["menu-btn"], status.signed_in);
+      // Reading Thunderbird's files involves no Outlook session to sign out of.
+      var signOut = el["menu"].querySelector('[data-action="logout"]');
+      if (signOut) show(signOut, state.source !== "thunderbird");
 
       var sync = status.sync || {};
       state.syncing = !!sync.running;
@@ -102,7 +112,44 @@
       if (status.signed_in && !state.query) renderIdle(status.index || {});
       scheduleStatus();
       return status;
-    }).catch(function () { scheduleStatus(); });
+    }).catch(function (error) {
+      if (error && error.needsPasscode) return showLock("");
+      scheduleStatus();
+    });
+  }
+
+  /* -- passcode --------------------------------------------------------- */
+  function showLock(message) {
+    state.locked = true;
+    clearTimeout(state.statusTimer);
+    show(el["lock"], true);
+    show(el["search"], false);
+    show(el["signin"], false);
+    show(el["sync-btn"], false);
+    show(el["menu-btn"], false);
+    show(el["sync-bar"], false);
+    el["lock-error"].textContent = message || "";
+    show(el["lock-error"], !!message);
+    el["passcode"].focus();
+  }
+
+  function unlock(event) {
+    event.preventDefault();
+    var passcode = el["passcode"].value;
+    if (!passcode) return;
+    show(el["lock-error"], false);
+    api("/api/unlock", { method: "POST", body: { passcode: passcode } })
+      .then(function () {
+        el["passcode"].value = "";
+        state.locked = false;
+        return refreshStatus();
+      })
+      .then(function () { if (!state.locked) el["q"].focus(); })
+      .catch(function (error) {
+        el["lock-error"].textContent = error.message;
+        show(el["lock-error"], true);
+        el["passcode"].select();
+      });
   }
 
   function scheduleStatus() {
@@ -143,8 +190,10 @@
     el["empty"].innerHTML = count
       ? "Type anything you remember — a word, a name, a phrase.<br><span class='small'>Try <code>from:name</code>, <code>\"exact phrase\"</code>, or <code>has:attachment</code>.</span>"
       : (state.syncing
-          ? "Downloading your mail… you can start searching as soon as results appear."
-          : "Nothing indexed yet. Press <b>Sync</b> to download your mail.");
+          ? "Reading your mail… you can start searching as soon as results appear."
+          : (state.source === "thunderbird"
+              ? "Nothing indexed yet. Press <b>Sync</b> to read the mail Thunderbird has stored."
+              : "Nothing indexed yet. Press <b>Sync</b> to download your mail."));
   }
 
   function show(node, visible) {
@@ -202,6 +251,7 @@
   }
 
   function runSearch(text, offset) {
+    if (state.locked) return;
     state.query = text;
     state.offset = offset;
     if (!text.trim()) {
@@ -228,6 +278,7 @@
       renderResults(payload, offset === 0);
     }).catch(function (error) {
       if (mine !== state.seq) return;
+      if (error.needsPasscode) return showLock("");
       show(el["empty"], true);
       el["empty"].textContent = error.message;
       if (error.needsLogin) refreshStatus();
@@ -399,6 +450,7 @@
   }
 
   /* -- wiring ------------------------------------------------------------ */
+  el["lock-form"].addEventListener("submit", unlock);
   el["signin-btn"].addEventListener("click", startLogin);
   el["copy-code"].addEventListener("click", function () {
     var code = el["user-code"].textContent;

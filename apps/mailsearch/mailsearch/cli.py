@@ -8,20 +8,21 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from . import __version__
+from . import __version__, access, thunderbird
 from . import query as query_module
 from .auth import Authenticator, AuthError, NotAuthenticated
-from .config import Config, load_config
+from .config import SOURCE_GRAPH, SOURCE_THUNDERBIRD, Config, load_config
 from .graph import GraphClient, GraphError
-from .server import serve
+from .server import RemoteAccessRefused, serve
 from .store import HIGHLIGHT_END, HIGHLIGHT_START, Store
-from .sync import Syncer, SyncStatus
+from .sync import GraphSyncer, SyncStatus, ThunderbirdSyncer
 from .textutil import iso_to_local, shorten
 
 SETUP_HINT = (
-    "No Azure application (client) ID configured yet.\n"
-    "Register a free app in the Azure portal (two minutes — see README.md),\n"
-    "then run:  mailsearch setup --client-id <application-client-id>"
+    "Not set up yet. Choose where your mail is read from:\n"
+    "  mailsearch setup --thunderbird       index what Thunderbird already downloaded\n"
+    "  mailsearch setup --client-id <id>    sign in to Outlook directly (needs an\n"
+    "                                       Azure app registration — see README.md)"
 )
 
 
@@ -41,6 +42,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "search": _cmd_search,
         "serve": _cmd_serve,
         "reset": _cmd_reset,
+        "passcode": _cmd_passcode,
     }[args.command]
 
     try:
@@ -51,6 +53,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (AuthError, GraphError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    except RemoteAccessRefused as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     except KeyboardInterrupt:
         print("\nInterrupted.", file=sys.stderr)
         return 130
@@ -70,8 +75,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command")
 
-    setup = subparsers.add_parser("setup", help="store the Azure app registration details")
-    setup.add_argument("--client-id", required=True, help="Application (client) ID from Azure")
+    setup = subparsers.add_parser("setup", help="choose where mail is read from")
+    setup.add_argument("--client-id", help="Application (client) ID from Azure")
+    setup.add_argument(
+        "--thunderbird",
+        action="store_true",
+        help="index the mail Thunderbird already keeps on this computer "
+             "(no Outlook sign-in, no app registration)",
+    )
+    setup.add_argument(
+        "--profile",
+        default=None,
+        help="Thunderbird profile folder, if the automatic search finds the wrong one",
+    )
     setup.add_argument(
         "--tenant",
         default=None,
@@ -102,21 +118,89 @@ def _build_parser() -> argparse.ArgumentParser:
     web = subparsers.add_parser("serve", help="run the web UI (default command)")
     web.add_argument("--port", type=int, default=None, help="port to listen on")
     web.add_argument("--no-browser", action="store_true", help="do not open a browser window")
+    web.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="address to listen on; use 0.0.0.0 to let your phone reach it "
+             "(a passcode is required first)",
+    )
+    web.add_argument(
+        "--phone",
+        action="store_true",
+        help="shorthand for --host 0.0.0.0 --no-browser",
+    )
 
     subparsers.add_parser("reset", help="delete the local index (keeps the sign-in)")
 
-    parser.set_defaults(command="serve", port=None, no_browser=False)
+    passcode = subparsers.add_parser(
+        "passcode", help="set the passcode your phone uses to reach this app"
+    )
+    passcode.add_argument("--clear", action="store_true", help="remove the passcode")
+
+    parser.set_defaults(command="serve", port=None, no_browser=False, host="127.0.0.1",
+                        phone=False)
     return parser
 
 
 # -- commands -------------------------------------------------------------
 def _cmd_setup(args: argparse.Namespace, config: Config) -> int:
-    updated = config.with_overrides(client_id=args.client_id, tenant=args.tenant, port=args.port)
+    if args.thunderbird:
+        return _setup_thunderbird(args, config)
+    if not args.client_id:
+        print(
+            "Choose where mail is read from:\n"
+            "  mailsearch setup --thunderbird           read what Thunderbird already has\n"
+            "  mailsearch setup --client-id <id>        sign in to Outlook directly",
+            file=sys.stderr,
+        )
+        return 2
+    updated = config.with_overrides(
+        client_id=args.client_id, tenant=args.tenant, port=args.port, source=SOURCE_GRAPH
+    )
     path = updated.save()
     print(f"Saved settings to {path}")
+    print("  source    : Outlook (Microsoft Graph)")
     print(f"  client id : {updated.client_id}")
     print(f"  tenant    : {updated.tenant}")
     print("\nNext: mailsearch login")
+    return 0
+
+
+def _setup_thunderbird(args: argparse.Namespace, config: Config) -> int:
+    """Point the index at Thunderbird's own copy of the mailbox."""
+    profiles = thunderbird.find_profiles(args.profile)
+    if not profiles:
+        looked = "\n  ".join(str(path) for path in thunderbird.candidate_roots())
+        print(
+            "No Thunderbird profile with mail in it was found. Looked in:\n  " + looked +
+            "\n\nInstall Thunderbird, add your Outlook account, and let it download your "
+            "mail first. If it is installed somewhere else, pass --profile <folder>.",
+            file=sys.stderr,
+        )
+        return 1
+
+    profile = profiles[0]
+    folders = thunderbird.find_folders(profile)
+    updated = config.with_overrides(
+        source=SOURCE_THUNDERBIRD, profile=str(profile), port=args.port
+    )
+    path = updated.save()
+    print(f"Saved settings to {path}")
+    print("  source  : Thunderbird")
+    print(f"  profile : {profile}")
+    print(f"  folders : {len(folders)} found")
+    for folder in folders[:6]:
+        print(f"            {folder.display}")
+    if len(folders) > 6:
+        print(f"            … and {len(folders) - 6} more")
+    if not folders:
+        print(
+            "\nThunderbird is there but has not stored any mail yet. In Thunderbird open\n"
+            "Account Settings → Synchronisation & Storage and turn on keeping messages\n"
+            "on this computer, then wait for it to download.",
+            file=sys.stderr,
+        )
+    print("\nNext: mailsearch sync")
     return 0
 
 
@@ -179,13 +263,18 @@ def _cmd_sync(args: argparse.Namespace, config: Config) -> int:
     if not config.is_configured:
         print(SETUP_HINT, file=sys.stderr)
         return 2
-    auth = Authenticator(config)
-    if not auth.is_signed_in:
-        raise NotAuthenticated("Not signed in to Outlook yet.")
 
     store = Store(config.index_path)
     try:
-        syncer = Syncer(store, GraphClient(config, auth), on_progress=_progress_line)
+        if config.uses_thunderbird:
+            syncer = ThunderbirdSyncer(
+                store, profile=config.profile or None, on_progress=_progress_line
+            )
+        else:
+            auth = Authenticator(config)
+            if not auth.is_signed_in:
+                raise NotAuthenticated("Not signed in to Outlook yet.")
+            syncer = GraphSyncer(store, GraphClient(config, auth), on_progress=_progress_line)
         status = syncer.run(full=args.full)
     finally:
         store.close()
@@ -276,7 +365,42 @@ def _cmd_serve(args: argparse.Namespace, config: Config) -> int:
     if not config.is_configured:
         print(SETUP_HINT, file=sys.stderr)
         return 2
-    serve(config, port=args.port, open_browser=not args.no_browser)
+    host = "0.0.0.0" if args.phone else args.host
+    serve(
+        config,
+        port=args.port,
+        host=host,
+        open_browser=not (args.no_browser or args.phone),
+    )
+    return 0
+
+
+def _cmd_passcode(args: argparse.Namespace, config: Config) -> int:
+    """Set the passcode a phone needs to reach this app."""
+    if args.clear:
+        config.with_overrides(passcode="").save()
+        print("Passcode removed. The app will only answer on this computer again.")
+        return 0
+
+    import getpass
+
+    first = getpass.getpass("New passcode: ")
+    if len(first.strip()) < 6:
+        print("Use at least 6 characters — this is what stands between your mail "
+              "and anyone else who can reach this machine.", file=sys.stderr)
+        return 1
+    if first != getpass.getpass("Repeat it: "):
+        print("Those did not match.", file=sys.stderr)
+        return 1
+
+    updated = config.with_overrides(
+        passcode=access.hash_passcode(first),
+        session_secret=config.session_secret or access.new_secret(),
+    )
+    updated.save()
+    print("Passcode saved. Your phone will be asked for it once per device.")
+    print("\nNow start it so your phone can reach it:")
+    print("  mailsearch serve --phone")
     return 0
 
 

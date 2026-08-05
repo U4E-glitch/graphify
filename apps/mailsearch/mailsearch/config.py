@@ -18,6 +18,13 @@ DEFAULT_TENANT = "common"
 DEFAULT_GRAPH_ENDPOINT = "https://graph.microsoft.com/v1.0"
 DEFAULT_PORT = 8765
 
+#: Where the mail comes from.  "graph" signs in to Outlook directly and needs an
+#: Azure app registration; "thunderbird" reads the copy Thunderbird already
+#: keeps on this machine and needs no account access at all.
+SOURCE_GRAPH = "graph"
+SOURCE_THUNDERBIRD = "thunderbird"
+SOURCES = (SOURCE_GRAPH, SOURCE_THUNDERBIRD)
+
 CONFIG_FILENAME = "config.json"
 TOKENS_FILENAME = "tokens.json"
 INDEX_FILENAME = "index.sqlite3"
@@ -41,6 +48,16 @@ class Config:
     scopes: tuple[str, ...] = DEFAULT_SCOPES
     port: int = DEFAULT_PORT
     data_dir: Path = Path()
+
+    #: Which mail source to index (see SOURCE_* above).
+    source: str = SOURCE_GRAPH
+    #: Thunderbird profile directory, when the automatic search picks wrong.
+    profile: str = ""
+    #: PBKDF2 hash of the passcode that guards remote access. Empty means the
+    #: app has never been opened up beyond this computer.
+    passcode: str = ""
+    #: Random per-install value that signs session cookies.
+    session_secret: str = ""
 
     # -- derived paths ----------------------------------------------------
     @property
@@ -69,7 +86,18 @@ class Config:
 
     @property
     def is_configured(self) -> bool:
+        """True when the chosen source has everything it needs to run."""
+        if self.source == SOURCE_THUNDERBIRD:
+            return True  # nothing to configure; the mail is already on disk
         return bool(self.client_id)
+
+    @property
+    def uses_thunderbird(self) -> bool:
+        return self.source == SOURCE_THUNDERBIRD
+
+    @property
+    def has_passcode(self) -> bool:
+        return bool(self.passcode)
 
     # -- persistence ------------------------------------------------------
     def save(self) -> Path:
@@ -81,6 +109,10 @@ class Config:
             "graph_endpoint": self.graph_endpoint,
             "scopes": list(self.scopes),
             "port": self.port,
+            "source": self.source,
+            "profile": self.profile,
+            "passcode": self.passcode,
+            "session_secret": self.session_secret,
         }
         path = self.config_path
         path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -115,7 +147,8 @@ def load_config(data_dir: Path | None = None) -> Config:
     different mailbox without editing files:
 
         MAILSEARCH_HOME, MAILSEARCH_CLIENT_ID, MAILSEARCH_TENANT,
-        MAILSEARCH_AUTHORITY, MAILSEARCH_GRAPH_ENDPOINT, MAILSEARCH_PORT
+        MAILSEARCH_AUTHORITY, MAILSEARCH_GRAPH_ENDPOINT, MAILSEARCH_PORT,
+        MAILSEARCH_SOURCE, MAILSEARCH_PROFILE
     """
     directory = Path(data_dir).expanduser() if data_dir else default_data_dir()
     config = Config(data_dir=directory)
@@ -134,10 +167,16 @@ def load_config(data_dir: Path | None = None) -> Config:
                 graph_endpoint=raw.get("graph_endpoint"),
                 scopes=raw.get("scopes") or None,
                 port=_as_int(raw.get("port")),
+                source=raw.get("source"),
+                profile=raw.get("profile"),
+                passcode=raw.get("passcode"),
+                session_secret=raw.get("session_secret"),
             )
 
     return config.with_overrides(
         client_id=os.environ.get("MAILSEARCH_CLIENT_ID") or None,
+        source=os.environ.get("MAILSEARCH_SOURCE") or None,
+        profile=os.environ.get("MAILSEARCH_PROFILE") or None,
         tenant=os.environ.get("MAILSEARCH_TENANT") or None,
         authority=os.environ.get("MAILSEARCH_AUTHORITY") or None,
         graph_endpoint=os.environ.get("MAILSEARCH_GRAPH_ENDPOINT") or None,

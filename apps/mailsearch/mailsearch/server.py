@@ -1,13 +1,18 @@
 """The local web app: a small JSON API plus the static search UI.
 
-It binds to 127.0.0.1 only.  Because a page on the internet can also reach
-localhost, every API call must carry the ``X-Mailsearch`` header — a custom
-header forces a CORS preflight that this server never approves — and requests
-carrying a foreign ``Origin`` or ``Host`` are refused outright.
+By default it binds to 127.0.0.1.  Because a page on the internet can also
+reach localhost, every API call must carry the ``X-Mailsearch`` header — a
+custom header forces a CORS preflight that this server never approves — and
+requests carrying a foreign ``Origin`` are refused outright.
+
+It can also be opened up so a phone can reach it (over Tailscale, or a home
+network).  That requires a passcode: connections from anywhere other than this
+machine must unlock first and carry the resulting session cookie.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import mimetypes
 import threading
@@ -15,21 +20,25 @@ import time
 import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import partial
+from functools import lru_cache, partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from . import access
 from . import query as query_module
 from .auth import Authenticator, AuthError, DeviceCode, NotAuthenticated
 from .config import Config
 from .graph import GraphClient, GraphError
 from .store import Store
-from .sync import Syncer
+from .sync import GraphSyncer, ThunderbirdSyncer
 
 WEB_ROOT = Path(__file__).parent / "web"
 API_HEADER = "X-Mailsearch"
-ALLOWED_HOSTS = {"localhost", "127.0.0.1", "[::1]", "::1"}
+#: Names that mean "this machine". Any other *name* in a Host header is refused
+#: (see Handler._host_allowed); bare IP addresses and Tailscale names are fine,
+#: since those are how a phone legitimately reaches the app.
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "[::1]", "::1"}
 
 
 @dataclass
@@ -48,9 +57,35 @@ class AppState:
         self.store = store or Store(config.index_path)
         self.auth = Authenticator(config)
         self.graph = GraphClient(config, self.auth)
-        self.syncer = Syncer(self.store, self.graph)
+        self.syncer = (
+            ThunderbirdSyncer(self.store, profile=config.profile or None)
+            if config.uses_thunderbird
+            else GraphSyncer(self.store, self.graph)
+        )
         self._login = LoginState()
         self._login_lock = threading.Lock()
+        self.limiter = access.AttemptLimiter()
+
+    # -- remote access ----------------------------------------------------
+    @property
+    def requires_passcode(self) -> bool:
+        return self.config.has_passcode
+
+    def expected_token(self) -> str:
+        if not self.config.has_passcode or not self.config.session_secret:
+            return ""
+        return access.session_token(self.config.passcode, self.config.session_secret)
+
+    def unlock(self, passcode: str, address: str) -> tuple[bool, str, float]:
+        """Check a passcode. Returns (ok, session token, seconds to wait)."""
+        wait = self.limiter.locked_for(address)
+        if wait > 0:
+            return False, "", wait
+        if not access.verify_passcode(passcode, self.config.passcode):
+            self.limiter.record_failure(address)
+            return False, "", self.limiter.locked_for(address)
+        self.limiter.clear(address)
+        return True, self.expected_token(), 0.0
 
     # -- login ------------------------------------------------------------
     def begin_login(self) -> dict[str, Any]:
@@ -112,10 +147,15 @@ class AppState:
     # -- status -----------------------------------------------------------
     def status(self) -> dict[str, Any]:
         stats = self.store.stats()
+        thunderbird = self.config.uses_thunderbird
         return {
             "configured": self.config.is_configured,
-            "signed_in": self.auth.is_signed_in,
-            "account": self.auth.account or stats.get("account", ""),
+            # Reading Thunderbird's files needs no Outlook session at all, so
+            # the UI should never show a sign-in prompt for it.
+            "signed_in": True if thunderbird else self.auth.is_signed_in,
+            "source": self.config.source,
+            "account": stats.get("account", "") if thunderbird
+            else (self.auth.account or stats.get("account", "")),
             "index": stats,
             "sync": self.syncer.status,
             "client_id_hint": self.config.client_id[:8] + "…" if self.config.client_id else "",
@@ -150,20 +190,76 @@ class Handler(BaseHTTPRequestHandler):
     def _error(self, message: str, status: int = 400, **extra: Any) -> None:
         self._json({"error": message, **extra}, status=status)
 
+    # -- access control ----------------------------------------------------
+    @property
+    def client_address_text(self) -> str:
+        return self.client_address[0] if self.client_address else ""
+
+    @property
+    def from_this_machine(self) -> bool:
+        return access.is_loopback(self.client_address_text)
+
+    def _same_origin(self) -> bool:
+        """The request must not have been sent by some other website."""
+        origin = self.headers.get("Origin")
+        if not origin:
+            return True  # not a cross-origin request at all
+        hostname = (urllib.parse.urlparse(origin).hostname or "").lower()
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+        # Our own page sends an Origin matching the address it was loaded from.
+        return hostname == host or (hostname in LOOPBACK_HOSTS and host in LOOPBACK_HOSTS)
+
+    def _unlocked(self) -> bool:
+        """True when this request may see mail."""
+        if self.from_this_machine:
+            return True  # already on the machine holding the index
+        if not self.app.requires_passcode:
+            return False  # opened up without a passcode: refuse rather than leak
+        expected = self.app.expected_token()
+        return bool(expected) and self._cookie(access.COOKIE_NAME) == expected
+
+    def _cookie(self, name: str) -> str:
+        raw = self.headers.get("Cookie") or ""
+        for part in raw.split(";"):
+            key, _, value = part.strip().partition("=")
+            if key == name:
+                return value
+        return ""
+
+    def _host_allowed(self) -> bool:
+        """Defend against DNS rebinding without pinning one address.
+
+        A rebinding attack needs the victim's browser to keep sending the
+        attacker's *domain name* in Host while the name resolves to this
+        machine. Legitimate access always arrives as a bare IP address, a
+        loopback name, or a Tailscale name — never as somebody's domain.
+        """
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]").lower()
+        if not host or host in LOOPBACK_HOSTS:
+            return True
+        if host.endswith(".ts.net"):  # Tailscale's own DNS names
+            return True
+        if host == _machine_hostname():
+            return True
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            return False
+        return True
+
     def _guard(self) -> bool:
-        """Refuse anything that did not come from our own page."""
-        host = (self.headers.get("Host") or "").split(":")[0]
-        if host and host not in ALLOWED_HOSTS:
+        """Refuse anything that did not come from our own page, or is locked."""
+        if not self._host_allowed():
             self._error("Refused: unexpected Host header.", 403)
             return False
-        origin = self.headers.get("Origin")
-        if origin:
-            hostname = urllib.parse.urlparse(origin).hostname or ""
-            if hostname not in ALLOWED_HOSTS:
-                self._error("Refused: cross-origin request.", 403)
-                return False
+        if not self._same_origin():
+            self._error("Refused: cross-origin request.", 403)
+            return False
         if not self.headers.get(API_HEADER):
             self._error(f"Refused: missing {API_HEADER} header.", 403)
+            return False
+        if not self._unlocked():
+            self._error("Locked. Enter the passcode to continue.", 401, needs_passcode=True)
             return False
         return True
 
@@ -195,6 +291,14 @@ class Handler(BaseHTTPRequestHandler):
 
         if not path.startswith("/api/"):
             return self._error("Not found", 404)
+        if path == "/api/lock":
+            if not self._host_allowed() or not self._same_origin():
+                return self._error("Refused.", 403)
+            return self._json({
+                "locked": not self._unlocked(),
+                "passcode_set": self.app.requires_passcode,
+                "local": self.from_this_machine,
+            })
         if not self._guard():
             return
 
@@ -219,6 +323,12 @@ class Handler(BaseHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         if not path.startswith("/api/"):
             return self._error("Not found", 404)
+        if path == "/api/unlock":
+            # Reachable while locked — it is how you stop being locked.
+            if not self._host_allowed() or not self._same_origin() \
+                    or not self.headers.get(API_HEADER):
+                return self._error("Refused.", 403)
+            return self._unlock(self._body())
         if not self._guard():
             return
         body = self._body()
@@ -249,6 +359,34 @@ class Handler(BaseHTTPRequestHandler):
         return self._error("Not found", 404)
 
     # -- endpoints --------------------------------------------------------
+    def _unlock(self, body: dict[str, Any]) -> None:
+        if not self.app.requires_passcode:
+            return self._error("No passcode is set on this computer.", 400)
+        ok, token, wait = self.app.unlock(str(body.get("passcode") or ""),
+                                          self.client_address_text)
+        if not ok:
+            if wait > 0:
+                return self._error(
+                    f"Too many wrong tries. Wait {int(wait) + 1} seconds.", 429,
+                    retry_after=int(wait) + 1,
+                )
+            return self._error("That passcode is not right.", 401)
+
+        body_out = json.dumps({"ok": True}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body_out)))
+        self.send_header("Cache-Control", "no-store")
+        # Not marked Secure: over Tailscale the transport is already encrypted,
+        # and a Secure cookie would simply never be stored over plain http.
+        self.send_header(
+            "Set-Cookie",
+            f"{access.COOKIE_NAME}={token}; Path=/; HttpOnly; SameSite=Lax; "
+            f"Max-Age={access.SESSION_DAYS * 86400}",
+        )
+        self.end_headers()
+        self.wfile.write(body_out)
+
     def _search(self, params: dict[str, list[str]]) -> None:
         raw = _first(params, "q")
         parsed = query_module.parse(raw)
@@ -317,12 +455,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header(
             "Content-Security-Policy",
             "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-            "connect-src 'self'; base-uri 'none'; form-action 'none'",
+            "connect-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'",
         )
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         self.wfile.write(body)
+
+
+@lru_cache(maxsize=1)
+def _machine_hostname() -> str:
+    import socket
+
+    try:
+        return socket.gethostname().lower()
+    except OSError:  # pragma: no cover
+        return ""
 
 
 def _first(params: dict[str, list[str]], key: str, default: str = "") -> str:
@@ -346,16 +494,27 @@ def serve(
     ready: Callable[[str], None] | None = None,
 ) -> None:
     """Run the app until interrupted."""
+    if not access.is_loopback(host) and not config.has_passcode:
+        raise RemoteAccessRefused(
+            f"Refusing to listen on {host} without a passcode — anyone who can reach "
+            "this machine could read your mail.\nSet one first:  mailsearch passcode"
+        )
+
     app = AppState(config)
     chosen = port or config.port
     server = ThreadingHTTPServer((host, chosen), partial(Handler, app))
     server.daemon_threads = True
-    url = f"http://{host}:{server.server_address[1]}/"
+    bound_port = server.server_address[1]
+    url = f"http://{_display_host(host)}:{bound_port}/"
 
     if ready:
         ready(url)
     else:
         print(f"mailsearch is running at {url}")
+        if not access.is_loopback(host):
+            for address in reachable_addresses():
+                print(f"  from your phone:  http://{address}:{bound_port}/")
+            print("  (the passcode is asked for once per device)")
         print("Press Ctrl+C to stop.")
 
     if open_browser:
@@ -369,6 +528,52 @@ def serve(
         server.shutdown()
         server.server_close()
         app.close()
+
+
+class RemoteAccessRefused(Exception):
+    """Asked to listen beyond this machine with no passcode set."""
+
+
+def _display_host(host: str) -> str:
+    """0.0.0.0 is not somewhere you can point a browser."""
+    return "localhost" if host in ("0.0.0.0", "::", "") else host
+
+
+def reachable_addresses() -> list[str]:
+    """Addresses this machine can be reached on, Tailscale first.
+
+    Tailscale hands out 100.64.0.0/10 addresses, which work from anywhere the
+    phone has signal; a 192.168/10./172.16 address only works on the same
+    network. Listing them in that order puts the useful one first.
+    """
+    import socket
+
+    found: list[str] = []
+    try:
+        infos = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+        found = sorted({info[4][0] for info in infos})
+    except (OSError, UnicodeError):
+        found = []
+
+    try:  # the hostname does not always resolve to the Tailscale address
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.connect(("100.100.100.100", 80))  # Tailscale's own resolver
+        found.append(probe.getsockname()[0])
+        probe.close()
+    except OSError:
+        pass
+
+    def rank(address: str) -> int:
+        first, _, rest = address.partition(".")
+        second = int(rest.partition(".")[0] or 0)
+        if first == "100" and 64 <= second <= 127:
+            return 0  # Tailscale: reachable from anywhere
+        if address.startswith("127."):
+            return 3
+        return 1
+
+    unique = sorted(set(found), key=lambda address: (rank(address), address))
+    return [address for address in unique if not address.startswith("127.")]
 
 
 def _open_browser_later(url: str) -> None:  # pragma: no cover - user-facing nicety

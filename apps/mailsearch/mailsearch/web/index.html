@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Mail Search</title>
+<link rel="manifest" href="/static/manifest.webmanifest">
+<meta name="theme-color" content="#2f6df6">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/static/favicon.svg">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/styles.css">
 </head>
@@ -39,6 +43,19 @@
 </div>
 
 <main id="main">
+
+  <!-- Passcode (only when reached from another device) -->
+  <section id="lock" class="panel center" hidden>
+    <h1>Enter your passcode</h1>
+    <p class="muted">This is the passcode you set on the computer running Mail Search.</p>
+    <form id="lock-form" class="lock-form" autocomplete="off">
+      <input id="passcode" type="password" inputmode="text" autocomplete="current-password"
+             placeholder="Passcode" aria-label="Passcode">
+      <button class="btn primary big" type="submit">Unlock</button>
+    </form>
+    <p id="lock-error" class="error" hidden></p>
+    <p class="muted small">You will only be asked once on this device.</p>
+  </section>
 
   <!-- Sign-in -->
   <section id="signin" class="panel center" hidden>

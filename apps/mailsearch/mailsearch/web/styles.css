@@ -302,3 +302,24 @@ kbd {
   .reader { position: static; width: 100%; max-height: none; }
   .hints .syntax { display: none; }
 }
+
+/* On a phone there is no keyboard to give shortcuts for. */
+@media (max-width: 700px), (pointer: coarse) {
+  .hints { display: none; }
+  main { padding: 14px 12px 0; }
+}
+
+/* -- passcode ----------------------------------------------------------- */
+.lock-form { display: flex; flex-direction: column; gap: 12px; margin: 22px auto 0; max-width: 320px; }
+.lock-form input {
+  font: inherit;
+  font-size: 17px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: center;
+  letter-spacing: .04em;
+}
+.lock-form input:focus { outline: none; border-color: var(--accent); }
