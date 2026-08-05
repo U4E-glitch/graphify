@@ -1,0 +1,47 @@
+# Publishes apps/mailsearch-web to GitHub Pages.
+#
+# Run it from the Actions tab (Run workflow). GitHub only offers that button for
+# workflows on the default branch, so until this file is merged there, use
+# Settings -> Pages -> "Deploy from a branch" instead; see the app's README.
+name: mailsearch-web-pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a queued run replaces an older queued one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run the app's tests
+        working-directory: apps/mailsearch-web
+        run: node --test 'tests/*.test.js'
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Upload only the web app
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/mailsearch-web
+      - id: deployment
+        uses: actions/deploy-pages@v4

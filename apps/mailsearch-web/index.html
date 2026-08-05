@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover so the layout can use the notch and home-indicator insets -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Mail Search</title>
+<meta name="description" content="Search your own Outlook mailbox from your phone.">
+
+<!-- Home Screen behaviour on iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mail Search">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2f6df6">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true" class="brand-mark">
+      <path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h9A2.5 2.5 0 0 1 17 6.5v5.2a6 6 0 0 0-6.9 7.3H5.5A2.5 2.5 0 0 1 3 16.5z"/>
+      <path d="M3.6 6l6.4 4.6L16.4 6" fill="none" stroke-width="1.6"/>
+      <circle cx="16.5" cy="16.5" r="3.4" fill="none" stroke-width="1.8"/>
+      <path d="M19 19l2.4 2.4" fill="none" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+    <span>Mail Search</span>
+  </div>
+  <div class="topbar-right">
+    <span id="account" class="account" hidden></span>
+    <button id="menu-btn" class="btn ghost" type="button" aria-haspopup="true"
+            aria-label="More" hidden>⋯</button>
+    <div id="menu" class="menu" hidden>
+      <button type="button" data-action="settings">App registration</button>
+      <button type="button" data-action="signout">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- First run -->
+  <section id="setup" class="panel" hidden>
+    <h1>Set up Mail Search</h1>
+    <p class="muted">
+      Microsoft requires every app that reads a mailbox to be registered. Register one
+      free in the Azure portal, then paste its Application (client) ID here. The README
+      has the steps.
+    </p>
+    <form id="setup-form" autocomplete="off">
+      <label for="client-id">Application (client) ID</label>
+      <input id="client-id" type="text" inputmode="latin" autocapitalize="off"
+             autocorrect="off" spellcheck="false"
+             placeholder="00000000-0000-0000-0000-000000000000">
+      <label for="tenant">Tenant</label>
+      <input id="tenant" type="text" inputmode="latin" autocapitalize="off"
+             autocorrect="off" spellcheck="false" value="common">
+      <p class="hint">
+        <code>common</code> for a registration that accepts both personal and work
+        accounts, <code>consumers</code> for personal accounts only, or your
+        organisation's tenant id.
+      </p>
+      <div class="card">
+        <b>In the app registration, make sure:</b>
+        <ul>
+          <li>Authentication → Add a platform → <b>Single-page application</b>, with this
+            exact redirect URI:
+            <div class="copy-row">
+              <code id="redirect-uri"></code>
+              <button id="copy-redirect" class="btn small" type="button">Copy</button>
+            </div>
+          </li>
+          <li>API permissions → Microsoft Graph → delegated <code>Mail.Read</code>,
+            <code>User.Read</code>, <code>offline_access</code></li>
+        </ul>
+      </div>
+      <p id="setup-error" class="error" hidden></p>
+      <button class="btn primary big" type="submit">Save</button>
+    </form>
+  </section>
+
+  <!-- Sign in -->
+  <section id="signin" class="panel center" hidden>
+    <h1>Mail Search</h1>
+    <p class="muted">
+      Search your whole Outlook mailbox from your phone. Your mail stays on Microsoft's
+      servers — nothing is downloaded or stored here.
+    </p>
+    <p id="signin-account" class="muted small"></p>
+    <button id="signin-btn" class="btn primary big wide" type="button">Sign in with Outlook</button>
+    <p id="signin-error" class="error" hidden></p>
+    <button id="edit-setup" class="link" type="button">Change app registration</button>
+  </section>
+
+  <!-- Search -->
+  <section id="search" hidden>
+    <div class="searchbox">
+      <svg viewBox="0 0 24 24" class="search-icon" aria-hidden="true">
+        <circle cx="11" cy="11" r="6.5" fill="none" stroke-width="2"/>
+        <path d="M16 16l4.5 4.5" fill="none" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <input id="q" type="search" enterkeyhint="search" autocapitalize="off"
+             autocorrect="off" spellcheck="false" autocomplete="off"
+             placeholder="Search your mail…" aria-label="Search your mail">
+      <span id="spinner" class="spinner" hidden aria-hidden="true"></span>
+      <button id="clear" class="clear" type="button" hidden aria-label="Clear">×</button>
+    </div>
+
+    <div id="summary" class="summary muted"></div>
+    <div id="notes"></div>
+
+    <div id="recent" class="recent" hidden>
+      <h2>Recent searches</h2>
+      <div id="recent-list"></div>
+      <h2>Try</h2>
+      <div class="syntax">
+        <div><code>from:alice</code><span>from a person</span></div>
+        <div><code>"exact phrase"</code><span>those words together</span></div>
+        <div><code>invoice -newsletter</code><span>excluding a word</span></div>
+        <div><code>has:attachment</code><span>only with attachments</span></div>
+        <div><code>after:2024-01-01</code><span>since a date</span></div>
+      </div>
+    </div>
+
+    <div id="results" class="results"></div>
+    <div id="empty" class="empty" hidden></div>
+    <button id="more" class="btn wide" type="button" hidden>Show more results</button>
+  </section>
+
+  <!-- One message -->
+  <section id="message" hidden>
+    <div class="msg-bar">
+      <button id="msg-back" class="btn ghost" type="button">← Back</button>
+      <a id="msg-open" class="btn small" href="#" target="_blank" rel="noopener noreferrer">Outlook</a>
+    </div>
+    <h1 id="msg-subject"></h1>
+    <div id="msg-meta" class="msg-meta"></div>
+    <pre id="msg-body" class="msg-body"></pre>
+  </section>
+</main>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
