@@ -1,0 +1,636 @@
+From 5a2ddd1dfe83a5503870361b9f0680690e0ccb45 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 4 Aug 2026 16:46:02 +0000
+Subject: [PATCH] perf(android): tune for Snapdragon 8-series tablets
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Four changes aimed at sustained framerate and touch feel on a flagship
+Android tablet (Adreno 7xx/8xx, ~3392x2400 panel).
+
+Render-height cap (SDL3Main.cpp). The mobile path drove the engine's
+internal resolution straight from the high-density drawable, so a
+OnePlus Pad 2 rendered 8.1 megapixels a frame through a 2003
+fixed-function D3D8 pipeline re-emitted by DXVK. Cap the height
+(default 1200, 2x the engine's 600px UI baseline) and derive the width
+from the panel's true aspect so the picture still fills the screen;
+DXVK's presenter scales the smaller backbuffer up. Configurable via
+-renderheight, SAGE_RENDER_HEIGHT, or RenderHeight in tablet.ini, and
+"native" restores the old behaviour. The comment above that block also
+claimed height stayed at 600 while the code used full native — corrected.
+
+APK asset extraction (SDL3Main.cpp). DXVK reads dxvk.conf from the
+process working directory, but only fonts were ever extracted out of the
+APK, so the shipped dxvk.conf was never read and every setting in it
+silently fell back to desktop defaults. Added a general asset-extraction
+helper and used it for dxvk.conf and tablet.ini. Neither is overwritten
+once present, so on-device edits survive.
+
+DXVK config. maxFrameLatency=1 so the selection box tracks the fingertip
+instead of trailing it by queued frames; presentInterval=1 so frames the
+compositor never shows stop turning into heat; numCompilerThreads=3 so
+shader compilation stops flooding all eight cores mid-match; a -0.5 LOD
+bias to recover apparent sharpness lost to the render-height cap. Also
+documents two knobs that look useful and are traps on mobile
+(hideIntegratedGraphics, maxAvailableMemory).
+
+GameActivity. Sustained performance mode, so a long match settles at a
+clock the chassis can hold rather than boosting and then falling off a
+thermal cliff. Keep-screen-on, since an RTS runs long stretches with no
+touch input. Cutout rendering. And system gesture exclusion on the left
+and right edges: a drag-select starting at the screen edge is the same
+shape as the back gesture, which otherwise throws the player out of the
+match instead of selecting units.
+
+Verified: GameActivity compiles against android.jar (API 35) and every
+API guard matches the platform's own api-versions.xml. The native side
+is NOT compile-verified — no NDK in this environment.
+---
+ GeneralsMD/Code/Main/SDL3Main.cpp             | 209 +++++++++++++++++-
+ android/app/src/main/assets/dxvk.conf         |  65 +++++-
+ android/app/src/main/assets/tablet.ini        |  36 +++
+ .../java/me/generalsx/zh/GameActivity.java    |  76 +++++++
+ android/config/dxvk.conf                      |  65 +++++-
+ android/config/tablet.ini                     |  36 +++
+ 6 files changed, 475 insertions(+), 12 deletions(-)
+ create mode 100644 android/app/src/main/assets/tablet.ini
+ create mode 100644 android/config/tablet.ini
+
+diff --git a/GeneralsMD/Code/Main/SDL3Main.cpp b/GeneralsMD/Code/Main/SDL3Main.cpp
+index 8369ccd..00032bc 100644
+--- a/GeneralsMD/Code/Main/SDL3Main.cpp
++++ b/GeneralsMD/Code/Main/SDL3Main.cpp
+@@ -255,6 +255,184 @@ static void FilterPipeWireOpenAL()
+ 	#endif
+ }
+ 
++#if defined(__ANDROID__)
++/**
++ * Copy one file out of the APK's assets/ into a real filesystem path.
++ *
++ * APK assets are not reachable through stdio, and several things the engine and
++ * its dependencies load do their own fopen()/access() on a plain path: the
++ * fonts (Locate_Font_FontConfig probes <CWD>/fonts/*.ttf) and DXVK's dxvk.conf,
++ * which DXVK reads from the process working directory. Anything in that
++ * category has to be materialised on disk once at startup or it is simply never
++ * read — the file sitting inside the APK has no effect at all.
++ *
++ * Returns true if the file now exists on disk (already-present counts).
++ */
++static bool gx_extract_apk_asset(const char *assetPath, const char *outPath)
++{
++	if (access(outPath, R_OK) == 0) {
++		return true;  // already extracted; never clobber a file the user may have tuned
++	}
++
++	JNIEnv *env = (JNIEnv *)SDL_GetAndroidJNIEnv();
++	jobject activity = (jobject)SDL_GetAndroidActivity();
++	if (env == nullptr || activity == nullptr) {
++		__android_log_print(ANDROID_LOG_WARN, "GeneralsX",
++			"assets: no JNI env/activity, cannot extract '%s'", assetPath);
++		return false;
++	}
++
++	AAssetManager *mgr = nullptr;
++	jclass cls = env->GetObjectClass(activity);
++	jmethodID mid = env->GetMethodID(cls, "getAssets", "()Landroid/content/res/AssetManager;");
++	if (mid != nullptr) {
++		jobject javaAssetMgr = env->CallObjectMethod(activity, mid);
++		if (javaAssetMgr != nullptr) {
++			mgr = AAssetManager_fromJava(env, javaAssetMgr);
++			env->DeleteLocalRef(javaAssetMgr);
++		}
++	}
++	env->DeleteLocalRef(cls);
++	if (mgr == nullptr) {
++		return false;
++	}
++
++	AAsset *asset = AAssetManager_open(mgr, assetPath, AASSET_MODE_STREAMING);
++	if (asset == nullptr) {
++		__android_log_print(ANDROID_LOG_WARN, "GeneralsX",
++			"assets: '%s' not found in APK", assetPath);
++		return false;
++	}
++	const int outFd = open(outPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
++	if (outFd < 0) {
++		AAsset_close(asset);
++		return false;
++	}
++	char buf[8192];
++	int bytesRead;
++	while ((bytesRead = AAsset_read(asset, buf, sizeof(buf))) > 0) {
++		write(outFd, buf, bytesRead);
++	}
++	close(outFd);
++	AAsset_close(asset);
++	__android_log_print(ANDROID_LOG_INFO, "GeneralsX",
++		"assets: extracted '%s' -> %s", assetPath, outPath);
++	return true;
++}
++#endif // __ANDROID__
++
++#ifdef SAGE_MOBILE
++/**
++ * Render-scale resolution for high-density tablet panels.
++ *
++ * The mobile path requests a HIGH_PIXEL_DENSITY drawable and then drives the
++ * engine's internal resolution from the drawable's pixel size. On a phone
++ * (2868x1320 = 3.8MP) that is affordable. On a flagship tablet it is not: a
++ * OnePlus Pad 2 panel is 3392x2400 = 8.1 megapixels, and every one of those
++ * pixels goes through a 2003 fixed-function D3D8 pipeline re-emitted as Vulkan
++ * by DXVK. The engine's own fill-heavy passes (terrain multi-texture blending,
++ * shroud, water reflection, particle overdraw) scale linearly with that count,
++ * so native rendering costs ~4x what the same frame costs at 1200p while the
++ * extra detail is invisible at tablet viewing distance. Worse, sustained 8.1MP
++ * load pushes an Adreno 830 into thermal throttling within a few minutes, which
++ * shows up as a mid-match framerate cliff rather than a steady low framerate.
++ *
++ * So: render at a capped resolution and let DXVK's presenter scale the smaller
++ * backbuffer up to the swapchain. The panel's own scaler does the final blit,
++ * which is free. The UI stays sharp because the engine's font/layout scaling is
++ * resolution-aware (GlobalLanguage), and the cap is expressed in pixels rather
++ * than as a fixed multiplier so the same default behaves sensibly on a 1200p
++ * phone and a 2400p tablet alike.
++ *
++ * Resolution order (first hit wins):
++ *   1. "-renderheight <px>" on the command line   (explicit, any value)
++ *   2. SAGE_RENDER_HEIGHT environment variable    (adb shell setprop-free tuning)
++ *   3. tablet.ini in the GameData dir: RenderHeight=<px>
++ *   4. RENDER_HEIGHT_DEFAULT below
++ *
++ * A value of 0 (or "native") disables the cap and restores the previous
++ * full-native behaviour. Values are clamped to >= 600 because the engine's
++ * window layouts assume a 600px design baseline and break below it.
++ */
++static const int RENDER_HEIGHT_DEFAULT = 1200;  // 2x the engine's 600px UI baseline
++static const int RENDER_HEIGHT_MIN     = 600;   // below this the stock UI layouts break
++
++static Bool gx_parse_render_height(const char *text, int &outHeight)
++{
++	if (!text) {
++		return FALSE;
++	}
++	while (*text == ' ' || *text == '\t') {
++		++text;
++	}
++	if (SDL_strncasecmp(text, "native", 6) == 0) {
++		outHeight = 0;  // 0 == uncapped
++		return TRUE;
++	}
++	char *end = nullptr;
++	const long value = strtol(text, &end, 10);
++	if (end == text || value < 0 || value > 16384) {
++		return FALSE;
++	}
++	outHeight = (int)value;
++	return TRUE;
++}
++
++/**
++ * Resolve the render-height cap, in pixels. Returns 0 for "no cap".
++ */
++static int gx_resolve_render_height(void)
++{
++	int height = RENDER_HEIGHT_DEFAULT;
++	const char *source = "default";
++
++	// 3. tablet.ini beside the game data (CWD is already <external>/GameData here).
++	if (FILE *fp = fopen("tablet.ini", "r")) {
++		char line[256];
++		while (fgets(line, sizeof(line), fp)) {
++			if (SDL_strncasecmp(line, "RenderHeight", 12) != 0) {
++				continue;
++			}
++			const char *eq = strchr(line, '=');
++			int parsed = 0;
++			if (eq && gx_parse_render_height(eq + 1, parsed)) {
++				height = parsed;
++				source = "tablet.ini";
++			}
++			break;
++		}
++		fclose(fp);
++	}
++
++	// 2. Environment override.
++	if (const char *env = getenv("SAGE_RENDER_HEIGHT")) {
++		int parsed = 0;
++		if (gx_parse_render_height(env, parsed)) {
++			height = parsed;
++			source = "SAGE_RENDER_HEIGHT";
++		}
++	}
++
++	// 1. Command line wins over everything.
++	for (int i = 1; i + 1 < __argc; ++i) {
++		if (strcmp(__argv[i], "-renderheight") == 0) {
++			int parsed = 0;
++			if (gx_parse_render_height(__argv[i + 1], parsed)) {
++				height = parsed;
++				source = "-renderheight";
++			}
++			break;
++		}
++	}
++
++	if (height != 0 && height < RENDER_HEIGHT_MIN) {
++		height = RENDER_HEIGHT_MIN;
++	}
++	fprintf(stderr, "INFO: render height cap = %d (%s)\n", height, source);
++	return height;
++}
++#endif // SAGE_MOBILE
++
+ /**
+  * CreateGameEngine
+  *
+@@ -445,6 +623,15 @@ int main(int argc, char* argv[])
+ 			}
+ 		}
+ 
++		// DXVK reads dxvk.conf from the process working directory, which is the
++		// GameData dir by this point. The tuned config ships inside the APK, so
++		// without this it would never be read and every d3d9.* / dxvk.* setting
++		// would silently fall back to the desktop defaults. tablet.ini is the
++		// engine-side equivalent, read by gx_resolve_render_height() below.
++		// Both are extracted once and then left alone, so on-device edits stick.
++		gx_extract_apk_asset("dxvk.conf", "dxvk.conf");
++		gx_extract_apk_asset("tablet.ini", "tablet.ini");
++
+ 			if (files != nullptr) {
+ 			// DXVK shader cache in the app cache dir (purgeable under storage pressure).
+ 			const char *cache = SDL_GetAndroidCachePath();
+@@ -793,9 +980,10 @@ int main(int argc, char* argv[])
+ 		// Match the game's internal resolution to the screen's aspect ratio.
+ 		// Without this the engine runs its 4:3 default inside a wide mobile display
+ 		// (e.g. 19.5:9 phone, 16:10 tablet): pillarboxed picture and a skewed
+-		// window->game coordinate mapping. Height stays at the engine's 600px
+-		// design baseline (UI layouts assume >= 600); width follows the real
+-		// aspect. Injected as -xres/-yres argv entries so the normal command-line
++		// window->game coordinate mapping. Height follows the drawable, capped by
++		// gx_resolve_render_height() so a 2400px flagship panel doesn't force the
++		// D3D8 pipeline through 8.1MP a frame; width follows the real aspect so the
++		// picture still fills the panel. Injected as -xres/-yres argv entries so the normal command-line
+ 		// path applies them (user-passed flags still win because the parser lets
+ 		// later arguments override earlier ones... ours go last, so only add them
+ 		// if the user didn't pass explicit -xres/-yres).
+@@ -816,9 +1004,22 @@ int main(int argc, char* argv[])
+ 				static char xresVal[16], yresVal[16];
+ 				static char xresFlag[] = "-xres";
+ 				static char yresFlag[] = "-yres";
+-				const int yres = winH;
++				// Cap the internal resolution on high-density panels, preserving the
++				// drawable's exact aspect ratio so the picture still fills the screen
++				// edge to edge (a mismatched aspect would pillarbox and skew the
++				// window->game coordinate mapping the touch translator depends on).
++				int yres = winH;
+ 				int xres = winW;
++				const int renderHeight = gx_resolve_render_height();
++				if (renderHeight > 0 && winH > renderHeight) {
++					yres = renderHeight;
++					// Round the width to the nearest pixel of the true aspect rather
++					// than truncating: on 3392x2400 truncation drifts the aspect enough
++					// to shift the sidebar a pixel off the panel edge.
++					xres = (int)(((SDL_max(winW, 1) * (Sint64)yres) + (winH / 2)) / winH);
++				}
+ 				xres &= ~1;  // keep it even
++				yres &= ~1;
+ 				snprintf(xresVal, sizeof(xresVal), "%d", xres);
+ 				snprintf(yresVal, sizeof(yresVal), "%d", yres);
+ 
+diff --git a/android/app/src/main/assets/dxvk.conf b/android/app/src/main/assets/dxvk.conf
+index 7e53292..35ca2e8 100644
+--- a/android/app/src/main/assets/dxvk.conf
++++ b/android/app/src/main/assets/dxvk.conf
+@@ -1,10 +1,67 @@
+ # GeneralsX Android DXVK runtime configuration
+ #
+-# Mirrors ios/config/dxvk.conf. The same sampler/Anisotropy baseline applies:
+-# terrain viewed at the RTS camera's shallow angle smears under trilinear
+-# filtering; 16x Aniso is cheap on a modern mobile GPU.
++# Tuned for Snapdragon 8-series tablets (Adreno 7xx/8xx). DXVK reads this file
++# from the process working directory; SDL3Main.cpp extracts it out of the APK
++# into the GameData dir on first launch, so editing the copy at
++#   /sdcard/Android/data/me.generalsx.zh/files/GameData/dxvk.conf
++# takes effect on the next launch without rebuilding the APK.
++#
++# Unknown keys are ignored by DXVK, so this file stays safe across DXVK bumps.
++
++# --- Input latency -----------------------------------------------------------
++# The default frame queue (3) is tuned for a mouse, where a couple of frames of
++# lag is invisible. Under touch it is not: the finger is ON the selection box,
++# so any queued frame reads as the box physically lagging behind the fingertip.
++# 1 keeps the box glued to the finger. Costs a little GPU/CPU overlap, which the
++# render-height cap has already bought back.
++d3d9.maxFrameLatency = 1
++
++# Present on every vblank. The engine will happily render frames the compositor
++# never shows; on a battery-powered device those frames are pure heat, and heat
++# is what turns a steady 60 into a mid-match cliff on a passively cooled tablet.
++d3d9.presentInterval = 1
++
++# --- Shader compilation ------------------------------------------------------
++# Default (0) spawns one compiler thread per core. On a big.LITTLE SoC that
++# floods all 8 cores mid-match, competing with the game thread for the prime
++# core and spiking package temperature exactly when a new unit type first
++# appears. 3 keeps compilation off the critical path without starving it.
++dxvk.numCompilerThreads = 3
++
++# Graphics pipeline libraries remove the recompile hitch when a shader is first
++# seen. Qualcomm's Vulkan driver support for VK_EXT_graphics_pipeline_library is
++# version-dependent, so leave the detection to DXVK rather than forcing it on.
++dxvk.enableGraphicsPipelineLibrary = Auto
++
++# --- Texture filtering -------------------------------------------------------
++# The RTS camera looks at terrain edge-on, which is the worst case for trilinear
++# filtering: ground textures smear into mush toward the horizon. Anisotropy is
++# the fix and it is cheap on a tile-based mobile GPU. Drop to 8 if you are
++# chasing the last few frames on a mid-range part.
+ d3d9.forceSamplerTypeSpecConstants = False
+ d3d9.samplerAnisotropy = 16
+ 
+-# No debug logging in normal play (Android logcat already captures stderr).
++# Rendering below panel resolution (see -renderheight) and letting the display
++# scaler upscale costs some apparent texture sharpness. A small negative LOD
++# bias pulls higher mip levels in earlier and wins most of it back. Valid range
++# is -2.0 to 1.0; past about -1.0 textures start to shimmer under camera pan.
++d3d9.samplerLodBias = -0.5
++
++# --- Diagnostics -------------------------------------------------------------
++# No debug logging in normal play (Android logcat already captures stderr, and
++# DXVK's file logger writes into the GameData dir on every launch otherwise).
+ dxvk.logLevel = none
++
++# --- Traps: do not enable on Android -----------------------------------------
++# dxvk.hideIntegratedGraphics would hide the ONLY GPU present on a phone or
++# tablet — there is no discrete device to fall back to, so DXVK finds no adapter
++# and device creation fails outright. Listed here explicitly because it looks
++# like a sensible "prefer the fast GPU" knob and is not.
++dxvk.hideIntegratedGraphics = False
++
++# d3d9.maxAvailableMemory is deliberately left at its default. The engine calls
++# GetAvailableTextureMem() and picks its texture-detail tier from the answer;
++# raising it on a unified-memory device talks the engine into a working set the
++# app's heap cannot actually hold, and it is the OOM killer that decides how
++# that ends. Lower it (e.g. 1024) only if you see texture-related OOM kills.
++# d3d9.maxAvailableMemory = 4096
+diff --git a/android/app/src/main/assets/tablet.ini b/android/app/src/main/assets/tablet.ini
+new file mode 100644
+index 0000000..4a55e93
+--- /dev/null
++++ b/android/app/src/main/assets/tablet.ini
+@@ -0,0 +1,36 @@
++# GeneralsX Android — tablet tuning
++#
++# Extracted to the GameData dir on first launch and read from there, so you can
++# edit it on-device and relaunch without rebuilding the APK:
++#   /sdcard/Android/data/me.generalsx.zh/files/GameData/tablet.ini
++#
++# It is never overwritten once it exists — your edits survive reinstalls of the
++# game data.
++
++# RenderHeight — internal render height in pixels. The width is derived from
++# your panel's real aspect ratio, so the picture always fills the screen.
++#
++# Why this exists: the engine is a 2003 fixed-function D3D8 renderer being
++# re-emitted as Vulkan by DXVK. A flagship tablet panel is ~3392x2400, which is
++# 8.1 megapixels per frame — roughly 4x the cost of 1200p for detail you cannot
++# resolve at tablet viewing distance. Sustained, it also heats the SoC until
++# thermal management drops clocks, which reads as a framerate cliff mid-match
++# rather than a steady lower framerate.
++#
++#   1200     default. 2x the engine's 600px UI design baseline; sharp UI, and
++#            a large headroom win on a 2400px panel.
++#   1440     sharper, still a solid win over native on a 2400px panel.
++#   900      for mid-range parts, or to hold framerate in big late-game battles.
++#   native   disable the cap and render at full panel resolution.
++#
++# Values below 600 are clamped to 600 — the stock window layouts assume a 600px
++# design baseline and break below it.
++RenderHeight = 1200
++
++# Overrides, highest priority first:
++#   -renderheight <px>  on the command line
++#   SAGE_RENDER_HEIGHT  environment variable
++#   this file
++#
++# Graphics settings beyond resolution live in dxvk.conf, extracted beside this
++# file. Frame latency, anisotropy and LOD bias are documented there.
+diff --git a/android/app/src/main/java/me/generalsx/zh/GameActivity.java b/android/app/src/main/java/me/generalsx/zh/GameActivity.java
+index daffbdd..4e9ee12 100644
+--- a/android/app/src/main/java/me/generalsx/zh/GameActivity.java
++++ b/android/app/src/main/java/me/generalsx/zh/GameActivity.java
+@@ -16,9 +16,23 @@
+ 
+ package me.generalsx.zh;
+ 
++import android.graphics.Rect;
++import android.os.Build;
++import android.os.Bundle;
++import android.view.View;
++import android.view.WindowManager;
++
+ import org.libsdl.app.SDLActivity;
+ 
++import java.util.ArrayList;
++import java.util.List;
++
+ public class GameActivity extends SDLActivity {
++
++    // Android trims a gesture-exclusion request to 200dp per edge; a 48dp band is
++    // well inside that budget and covers the thumb's swipe-start area.
++    private static final int GESTURE_EXCLUSION_WIDTH_DP = 48;
++
+     @Override
+     protected String[] getLibraries() {
+         // Order matters: the engine (libmain.so) dlopens libdxvk_d3d8.so, which
+@@ -42,4 +56,66 @@ public class GameActivity extends SDLActivity {
+         // The symbol nativeRunMain dlsyms inside libmain.so.
+         return "SDL_main";
+     }
++
++    @Override
++    protected void onCreate(Bundle savedInstanceState) {
++        super.onCreate(savedInstanceState);
++
++        // Sustained performance mode. Without it the governor treats a match like
++        // any other burst workload: it boosts to peak clocks, the passively cooled
++        // tablet chassis saturates after a few minutes, and thermal management
++        // drops the SoC hard — which the player experiences as a framerate cliff
++        // partway through a skirmish rather than as a lower but steady framerate.
++        // This asks the platform for a clock ceiling it can hold indefinitely.
++        // API 24 = minSdk, so no version guard is needed.
++        getWindow().setSustainedPerformanceMode(true);
++
++        // An RTS match runs long stretches with no touch input while the player
++        // watches a base build out. That is exactly when the screen timeout fires.
++        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
++
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
++            // Render into the cutout area. The game is landscape and letterboxing
++            // away a notch costs real sidebar space on tablets that have one.
++            getWindow().getAttributes().layoutInDisplayCutoutMode =
++                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
++        }
++
++        installGestureExclusion();
++    }
++
++    /**
++     * Keep Android's back/home gestures off the vertical screen edges.
++     *
++     * On a gesture-navigation device the left and right edges are system swipe
++     * zones. That collides badly with this game specifically: a drag-select box
++     * often starts at the very edge of the screen, and the two-finger camera pan
++     * regularly ends there — both are horizontal drags inward from an edge, which
++     * is precisely the back-gesture shape. Without an exclusion the player gets
++     * thrown out of the match instead of selecting units.
++     *
++     * Re-applied on every layout pass because the rects are tied to the view's
++     * current bounds and are dropped when it is re-laid out (SDL recreates its
++     * surface on rotation and on resume from background).
++     */
++    private void installGestureExclusion() {
++        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
++            return;  // setSystemGestureExclusionRects is API 29+
++        }
++        final View decor = getWindow().getDecorView();
++        decor.addOnLayoutChangeListener(
++            (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
++                final int width = right - left;
++                final int height = bottom - top;
++                if (width <= 0 || height <= 0) {
++                    return;
++                }
++                final int band = Math.round(
++                    GESTURE_EXCLUSION_WIDTH_DP * getResources().getDisplayMetrics().density);
++                final List<Rect> exclusions = new ArrayList<>(2);
++                exclusions.add(new Rect(0, 0, band, height));
++                exclusions.add(new Rect(width - band, 0, width, height));
++                v.setSystemGestureExclusionRects(exclusions);
++            });
++    }
+ }
+diff --git a/android/config/dxvk.conf b/android/config/dxvk.conf
+index 7e53292..35ca2e8 100644
+--- a/android/config/dxvk.conf
++++ b/android/config/dxvk.conf
+@@ -1,10 +1,67 @@
+ # GeneralsX Android DXVK runtime configuration
+ #
+-# Mirrors ios/config/dxvk.conf. The same sampler/Anisotropy baseline applies:
+-# terrain viewed at the RTS camera's shallow angle smears under trilinear
+-# filtering; 16x Aniso is cheap on a modern mobile GPU.
++# Tuned for Snapdragon 8-series tablets (Adreno 7xx/8xx). DXVK reads this file
++# from the process working directory; SDL3Main.cpp extracts it out of the APK
++# into the GameData dir on first launch, so editing the copy at
++#   /sdcard/Android/data/me.generalsx.zh/files/GameData/dxvk.conf
++# takes effect on the next launch without rebuilding the APK.
++#
++# Unknown keys are ignored by DXVK, so this file stays safe across DXVK bumps.
++
++# --- Input latency -----------------------------------------------------------
++# The default frame queue (3) is tuned for a mouse, where a couple of frames of
++# lag is invisible. Under touch it is not: the finger is ON the selection box,
++# so any queued frame reads as the box physically lagging behind the fingertip.
++# 1 keeps the box glued to the finger. Costs a little GPU/CPU overlap, which the
++# render-height cap has already bought back.
++d3d9.maxFrameLatency = 1
++
++# Present on every vblank. The engine will happily render frames the compositor
++# never shows; on a battery-powered device those frames are pure heat, and heat
++# is what turns a steady 60 into a mid-match cliff on a passively cooled tablet.
++d3d9.presentInterval = 1
++
++# --- Shader compilation ------------------------------------------------------
++# Default (0) spawns one compiler thread per core. On a big.LITTLE SoC that
++# floods all 8 cores mid-match, competing with the game thread for the prime
++# core and spiking package temperature exactly when a new unit type first
++# appears. 3 keeps compilation off the critical path without starving it.
++dxvk.numCompilerThreads = 3
++
++# Graphics pipeline libraries remove the recompile hitch when a shader is first
++# seen. Qualcomm's Vulkan driver support for VK_EXT_graphics_pipeline_library is
++# version-dependent, so leave the detection to DXVK rather than forcing it on.
++dxvk.enableGraphicsPipelineLibrary = Auto
++
++# --- Texture filtering -------------------------------------------------------
++# The RTS camera looks at terrain edge-on, which is the worst case for trilinear
++# filtering: ground textures smear into mush toward the horizon. Anisotropy is
++# the fix and it is cheap on a tile-based mobile GPU. Drop to 8 if you are
++# chasing the last few frames on a mid-range part.
+ d3d9.forceSamplerTypeSpecConstants = False
+ d3d9.samplerAnisotropy = 16
+ 
+-# No debug logging in normal play (Android logcat already captures stderr).
++# Rendering below panel resolution (see -renderheight) and letting the display
++# scaler upscale costs some apparent texture sharpness. A small negative LOD
++# bias pulls higher mip levels in earlier and wins most of it back. Valid range
++# is -2.0 to 1.0; past about -1.0 textures start to shimmer under camera pan.
++d3d9.samplerLodBias = -0.5
++
++# --- Diagnostics -------------------------------------------------------------
++# No debug logging in normal play (Android logcat already captures stderr, and
++# DXVK's file logger writes into the GameData dir on every launch otherwise).
+ dxvk.logLevel = none
++
++# --- Traps: do not enable on Android -----------------------------------------
++# dxvk.hideIntegratedGraphics would hide the ONLY GPU present on a phone or
++# tablet — there is no discrete device to fall back to, so DXVK finds no adapter
++# and device creation fails outright. Listed here explicitly because it looks
++# like a sensible "prefer the fast GPU" knob and is not.
++dxvk.hideIntegratedGraphics = False
++
++# d3d9.maxAvailableMemory is deliberately left at its default. The engine calls
++# GetAvailableTextureMem() and picks its texture-detail tier from the answer;
++# raising it on a unified-memory device talks the engine into a working set the
++# app's heap cannot actually hold, and it is the OOM killer that decides how
++# that ends. Lower it (e.g. 1024) only if you see texture-related OOM kills.
++# d3d9.maxAvailableMemory = 4096
+diff --git a/android/config/tablet.ini b/android/config/tablet.ini
+new file mode 100644
+index 0000000..4a55e93
+--- /dev/null
++++ b/android/config/tablet.ini
+@@ -0,0 +1,36 @@
++# GeneralsX Android — tablet tuning
++#
++# Extracted to the GameData dir on first launch and read from there, so you can
++# edit it on-device and relaunch without rebuilding the APK:
++#   /sdcard/Android/data/me.generalsx.zh/files/GameData/tablet.ini
++#
++# It is never overwritten once it exists — your edits survive reinstalls of the
++# game data.
++
++# RenderHeight — internal render height in pixels. The width is derived from
++# your panel's real aspect ratio, so the picture always fills the screen.
++#
++# Why this exists: the engine is a 2003 fixed-function D3D8 renderer being
++# re-emitted as Vulkan by DXVK. A flagship tablet panel is ~3392x2400, which is
++# 8.1 megapixels per frame — roughly 4x the cost of 1200p for detail you cannot
++# resolve at tablet viewing distance. Sustained, it also heats the SoC until
++# thermal management drops clocks, which reads as a framerate cliff mid-match
++# rather than a steady lower framerate.
++#
++#   1200     default. 2x the engine's 600px UI design baseline; sharp UI, and
++#            a large headroom win on a 2400px panel.
++#   1440     sharper, still a solid win over native on a 2400px panel.
++#   900      for mid-range parts, or to hold framerate in big late-game battles.
++#   native   disable the cap and render at full panel resolution.
++#
++# Values below 600 are clamped to 600 — the stock window layouts assume a 600px
++# design baseline and break below it.
++RenderHeight = 1200
++
++# Overrides, highest priority first:
++#   -renderheight <px>  on the command line
++#   SAGE_RENDER_HEIGHT  environment variable
++#   this file
++#
++# Graphics settings beyond resolution live in dxvk.conf, extracted beside this
++# file. Frame latency, anisotropy and LOD bias are documented there.
+-- 
+2.43.0
+
