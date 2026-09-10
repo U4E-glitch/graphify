@@ -51,12 +51,12 @@ Issues = "https://github.com/safishamsi/graphify/issues"
 # starlette is pulled in transitively by mcp, but graphify/serve.py imports it
 # directly for the HTTP transport, so declare it here and floor it above the
 # CVE-2026-48818 / CVE-2026-54283 fixes (both resolved by 1.3.1) (#1391, #1396).
-# mcp is capped below 2.0: that release removed the low-level Server decorator
-# API (@server.list_tools/@call_tool/@list_resources/@read_resource) that
-# graphify/serve.py is built on, so an uncapped install resolved 2.0.0 and every
-# MCP server start — stdio and http alike — died on import (#1729). Porting
-# serve.py to the 2.x add_request_handler API is the follow-up that lifts this.
-mcp = ["mcp<2", "starlette>=1.3.1"]
+# mcp spans both majors: serve.py registers its handlers through
+# _register_handlers, which uses the 1.x decorators when present and the 2.x
+# add_request_handler API otherwise (#1729). The <3 ceiling is deliberate — 2.0
+# removed the decorator sugar with no deprecation window, so a new major is
+# assumed breaking until the suite is run against it under both venvs.
+mcp = ["mcp<3", "starlette>=1.3.1"]
 neo4j = ["neo4j"]
 falkordb = ["falkordb"]
 pdf = ["pypdf>=6.12.0", "markdownify"]
@@ -85,7 +85,7 @@ pascal = ["tree-sitter-pascal"]
 # avoids breaking the default `uv tool install graphifyy` for everyone (#1104).
 dm = ["tree-sitter-dm"]
 terraform = ["tree-sitter-hcl"]
-all = ["mcp<2", "starlette>=1.3.1", "neo4j", "falkordb", "pypdf>=6.12.0", "markdownify", "watchdog", "graspologic; python_version < '3.13'", "python-docx", "openpyxl", "faster-whisper; python_version >= '3.11'", "yt-dlp>=2026.6.9", "matplotlib", "numpy>=2.0; python_version >= '3.13'", "openai", "tiktoken", "boto3", "anthropic", "tree-sitter-sql", "jieba", "tree-sitter-dm", "tree-sitter-hcl", "tree-sitter-pascal"]
+all = ["mcp<3", "starlette>=1.3.1", "neo4j", "falkordb", "pypdf>=6.12.0", "markdownify", "watchdog", "graspologic; python_version < '3.13'", "python-docx", "openpyxl", "faster-whisper; python_version >= '3.11'", "yt-dlp>=2026.6.9", "matplotlib", "numpy>=2.0; python_version >= '3.13'", "openai", "tiktoken", "boto3", "anthropic", "tree-sitter-sql", "jieba", "tree-sitter-dm", "tree-sitter-hcl", "tree-sitter-pascal"]
 
 [project.scripts]
 graphify = "graphify.__main__:main"

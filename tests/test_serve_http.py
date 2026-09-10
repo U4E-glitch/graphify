@@ -301,25 +301,81 @@ def test_cli_api_key_from_env(monkeypatch):
     assert captured["api_key"] == "from-env"
 
 
-def test_mcp_extra_is_capped_below_2():
-    """The `mcp` extra must stay capped below 2.0 (#1729).
+def _session(client):
+    """initialize + notifications/initialized; return the session headers."""
+    init = client.post("/mcp", headers=_MCP_HEADERS, json=_INIT_BODY)
+    assert init.status_code == 200
+    session_id = init.headers.get("mcp-session-id")
+    assert session_id, "stateful transport should return a session id"
+    headers = {**_MCP_HEADERS, "mcp-session-id": session_id}
+    client.post(
+        "/mcp", headers=headers, json={"jsonrpc": "2.0", "method": "notifications/initialized"}
+    )
+    return headers
 
-    mcp 2.0 removed the low-level ``Server`` decorator API
-    (``@server.list_tools`` / ``call_tool`` / ``list_resources`` /
-    ``read_resource``) that :func:`graphify.serve._build_server` is built on, so
-    an uncapped requirement resolved 2.0.0 on a fresh install and every server
-    start — stdio and http alike — died at import with a misleading
-    "mcp not installed" error. Lift the cap only together with a port to the
-    2.x ``add_request_handler`` API.
+
+def _rpc(client, headers, method, params=None, req_id=2):
+    resp = client.post(
+        "/mcp",
+        headers=headers,
+        json={"jsonrpc": "2.0", "id": req_id, "method": method, "params": params or {}},
+    )
+    assert resp.status_code == 200
+    return resp.json()
+
+
+def test_resources_list_over_http(tmp_path):
+    """resources/list round-trips (#1729).
+
+    The resource handlers are registered through :func:`_register_handlers`,
+    whose mcp 2.x branch builds the result models by hand, so exercise them over
+    the wire rather than trusting the registration shim.
     """
-    import re
+    app = serve_mod._build_http_app(_graph_file(tmp_path), json_response=True)
+    with _client(app) as client:
+        headers = _session(client)
+        payload = _rpc(client, headers, "resources/list")
+        uris = {r["uri"] for r in payload["result"]["resources"]}
+        assert {"graphify://report", "graphify://stats", "graphify://god-nodes"} <= uris
 
-    root = Path(__file__).resolve().parent.parent
-    pyproject = (root / "pyproject.toml").read_text(encoding="utf-8")
-    for extra in ("mcp", "all"):
-        line = re.search(rf'^{extra} = \[(.*)$', pyproject, re.MULTILINE)
-        assert line, f"could not find the `{extra}` extra in pyproject.toml"
-        assert '"mcp<2"' in line.group(1), (
-            f"the `{extra}` extra must pin mcp<2 until serve.py is ported to the "
-            f"mcp 2.x handler API; got: {line.group(1)}"
-        )
+
+def test_resources_read_over_http(tmp_path):
+    """resources/read returns the resource body as text contents (#1729)."""
+    app = serve_mod._build_http_app(_graph_file(tmp_path), json_response=True)
+    with _client(app) as client:
+        headers = _session(client)
+        payload = _rpc(client, headers, "resources/read", {"uri": "graphify://stats"})
+        contents = payload["result"]["contents"]
+        assert len(contents) == 1
+        assert contents[0]["text"], "stats resource should not be empty"
+        # SAMPLE_GRAPH has two nodes; the stats body should say so.
+        assert "2" in contents[0]["text"]
+
+
+def test_unknown_resource_is_a_jsonrpc_error(tmp_path):
+    """An unknown resource URI errors without killing the session (#1729)."""
+    app = serve_mod._build_http_app(_graph_file(tmp_path), json_response=True)
+    with _client(app) as client:
+        headers = _session(client)
+        payload = _rpc(client, headers, "resources/read", {"uri": "graphify://nope"})
+        assert "error" in payload, f"expected a JSON-RPC error, got {payload}"
+        # The session survives: a following request still succeeds.
+        follow = _rpc(client, headers, "resources/list", req_id=3)
+        assert "result" in follow
+
+
+def test_project_path_is_injected_into_every_tool_schema(tmp_path):
+    """The project_path injection reads the schema field under both mcp majors.
+
+    mcp 1.x names it ``inputSchema`` and 2.x ``input_schema``; the camelCase
+    alias populates on construction but is not readable as an attribute, so a
+    hardcoded name silently broke ``tools/list`` on 2.x (#1729).
+    """
+    app = serve_mod._build_http_app(_graph_file(tmp_path), json_response=True)
+    with _client(app) as client:
+        headers = _session(client)
+        tools = _rpc(client, headers, "tools/list")["result"]["tools"]
+        assert tools
+        for tool in tools:
+            props = tool["inputSchema"]["properties"]
+            assert "project_path" in props, f"{tool['name']} is missing project_path"
