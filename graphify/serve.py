@@ -767,6 +767,59 @@ def _community_header(cid: int, community_name) -> str:
     return base
 
 
+def _register_handlers(server, types, *, list_tools, list_resources, read_resource, call_tool) -> None:
+    """Wire the four graph handlers onto ``server`` on either mcp major (#1729).
+
+    mcp 1.x exposes decorator sugar on the low-level ``Server``
+    (``@server.list_tools()`` and friends), which wraps a plain return value
+    into the spec result model. mcp 2.0 removed that sugar for
+    ``add_request_handler(method, params_type, handler)``, where a handler takes
+    ``(ctx, params)`` and returns the result model itself.
+
+    Only the wiring lives here — the handler bodies are shared, because 2.x kept
+    the camelCase field aliases with ``populate_by_name``, so
+    ``types.Tool(inputSchema=...)`` and ``types.Resource(mimeType=...)`` still
+    construct unchanged. The aliases are write-only though: reading a field back
+    needs its real name, which is why the ``project_path`` injection resolves
+    ``inputSchema``/``input_schema`` at runtime.
+    """
+    if hasattr(server, "list_tools"):  # mcp 1.x
+        server.list_tools()(list_tools)
+        server.list_resources()(list_resources)
+        server.read_resource()(read_resource)
+        server.call_tool()(call_tool)
+        return
+
+    async def _on_list_tools(_ctx, _params):
+        return types.ListToolsResult(tools=await list_tools())
+
+    async def _on_list_resources(_ctx, _params):
+        return types.ListResourcesResult(resources=await list_resources())
+
+    async def _on_read_resource(_ctx, params):
+        # 1.x wrapped a returned str as text/plain; keep that exact shape so a
+        # client sees the same contents payload on either major.
+        return types.ReadResourceResult(
+            contents=[
+                types.TextResourceContents(
+                    uri=str(params.uri),
+                    text=await read_resource(params.uri),
+                    mimeType="text/plain",
+                )
+            ]
+        )
+
+    async def _on_call_tool(_ctx, params):
+        return types.CallToolResult(
+            content=list(await call_tool(params.name, params.arguments or {}))
+        )
+
+    server.add_request_handler("tools/list", types.PaginatedRequestParams, _on_list_tools)
+    server.add_request_handler("resources/list", types.PaginatedRequestParams, _on_list_resources)
+    server.add_request_handler("resources/read", types.ReadResourceRequestParams, _on_read_resource)
+    server.add_request_handler("tools/call", types.CallToolRequestParams, _on_call_tool)
+
+
 def _build_server(graph_path: str):
     """Build the configured low-level MCP Server (shared by every transport).
 
@@ -780,11 +833,6 @@ def _build_server(graph_path: str):
     try:
         from mcp.server import Server
         from mcp import types
-        # AnyUrl is a pydantic type that mcp 1.x happened to re-export from
-        # mcp.types; mcp 2.x dropped the re-export. pydantic is a hard dependency
-        # of mcp either way, so take it from the real source and stay version-
-        # agnostic (#1729).
-        from pydantic import AnyUrl
     except ImportError as e:
         raise ImportError('mcp not installed. Run: pip install "graphifyy[mcp]"') from e
 
@@ -860,7 +908,6 @@ def _build_server(graph_path: str):
 
     server = Server("graphify")
 
-    @server.list_tools()
     async def list_tools() -> list[types.Tool]:
         _tools = [
             types.Tool(
@@ -987,8 +1034,12 @@ def _build_server(graph_path: str):
         # Injected here (rather than repeated in 11 literal schemas) so the set
         # stays in lockstep as tools are added. Omitting it keeps the historical
         # single-graph behaviour, so this is purely additive for existing callers.
+        # The field is `inputSchema` on mcp 1.x and `input_schema` on 2.x — the
+        # camelCase alias populates on construction but is not an attribute — so
+        # resolve the live name rather than assuming either (#1729).
+        _schema_attr = "inputSchema" if hasattr(_tools[0], "inputSchema") else "input_schema"
         for _t in _tools:
-            _t.inputSchema.setdefault("properties", {})["project_path"] = {
+            getattr(_t, _schema_attr).setdefault("properties", {})["project_path"] = {
                 "type": "string",
                 "description": (
                     "Absolute path to a project directory containing "
@@ -1269,19 +1320,21 @@ def _build_server(graph_path: str):
                 pass
         return {cid: f"Community {cid}" for cid in communities}
 
-    @server.list_resources()
     async def list_resources() -> list[types.Resource]:
+        # `uri` is an AnyUrl field on mcp 1.x and a plain str on 2.x; a str
+        # validates on both (1.x coerces it), so pass strings rather than
+        # wrapping in a type whose home moved between majors (#1729).
         return [
-            types.Resource(uri=AnyUrl("graphify://report"), name="Graph Report", description="Full GRAPH_REPORT.md", mimeType="text/markdown"),
-            types.Resource(uri=AnyUrl("graphify://stats"), name="Graph Stats", description="Node/edge/community counts and confidence breakdown", mimeType="text/plain"),
-            types.Resource(uri=AnyUrl("graphify://god-nodes"), name="God Nodes", description="Top 10 most-connected nodes", mimeType="text/plain"),
-            types.Resource(uri=AnyUrl("graphify://surprises"), name="Surprising Connections", description="Cross-community surprising connections", mimeType="text/plain"),
-            types.Resource(uri=AnyUrl("graphify://audit"), name="Confidence Audit", description="EXTRACTED/INFERRED/AMBIGUOUS edge breakdown", mimeType="text/plain"),
-            types.Resource(uri=AnyUrl("graphify://questions"), name="Suggested Questions", description="Suggested questions for this codebase", mimeType="text/plain"),
+            types.Resource(uri="graphify://report", name="Graph Report", description="Full GRAPH_REPORT.md", mimeType="text/markdown"),
+            types.Resource(uri="graphify://stats", name="Graph Stats", description="Node/edge/community counts and confidence breakdown", mimeType="text/plain"),
+            types.Resource(uri="graphify://god-nodes", name="God Nodes", description="Top 10 most-connected nodes", mimeType="text/plain"),
+            types.Resource(uri="graphify://surprises", name="Surprising Connections", description="Cross-community surprising connections", mimeType="text/plain"),
+            types.Resource(uri="graphify://audit", name="Confidence Audit", description="EXTRACTED/INFERRED/AMBIGUOUS edge breakdown", mimeType="text/plain"),
+            types.Resource(uri="graphify://questions", name="Suggested Questions", description="Suggested questions for this codebase", mimeType="text/plain"),
         ]
 
-    @server.read_resource()
-    async def read_resource(uri: AnyUrl) -> str:
+    async def read_resource(uri) -> str:
+        # `uri` arrives as an AnyUrl on mcp 1.x and a str on 2.x; normalize.
         _select_graph(None)  # resources read the server's default graph
         uri_str = str(uri)
         if uri_str == "graphify://report":
@@ -1332,7 +1385,6 @@ def _build_server(graph_path: str):
                 return f"Could not generate questions: {exc}"
         raise ValueError(f"Unknown resource: {uri_str}")
 
-    @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
         arguments = dict(arguments or {})
         project_path = arguments.pop("project_path", None)
@@ -1345,6 +1397,14 @@ def _build_server(graph_path: str):
         except Exception as exc:
             return [types.TextContent(type="text", text=f"Error executing {name}: {exc}")]
 
+    _register_handlers(
+        server,
+        types,
+        list_tools=list_tools,
+        list_resources=list_resources,
+        read_resource=read_resource,
+        call_tool=call_tool,
+    )
     return server
 
 
