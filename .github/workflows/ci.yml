@@ -78,6 +78,39 @@ jobs:
           uv run --frozen graphify --help
           uv run --frozen graphify install
 
+  mcp-compat:
+    # The MCP server supports both mcp majors through _register_handlers: 1.x
+    # exposes decorator sugar on the low-level Server, 2.0 replaced it with
+    # add_request_handler (#1729). uv.lock pins one major at a time (currently
+    # 2.x), so the `test` job above only ever exercises that branch. This job
+    # runs the server suite against each major explicitly, so whichever one the
+    # lock is not on cannot rot unnoticed. Deliberately NOT --frozen: installing
+    # a version the lock does not hold is the whole point, so it resolves fresh
+    # into a throwaway venv and never touches the committed lock.
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mcp-version: ["<2", ">=2,<3"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Install with mcp ${{ matrix.mcp-version }}
+        run: |
+          uv venv
+          uv pip install -e ".[mcp]" pytest httpx "mcp${{ matrix.mcp-version }}"
+
+      - name: Report the resolved mcp version
+        run: uv pip show mcp | head -2
+
+      - name: Run the MCP server suite
+        run: uv run --no-sync pytest tests/test_serve.py tests/test_serve_http.py -q --tb=short
+
   security-scan:
     # The dev deps include bandit and pip-audit. Run them in CI so a new
     # HIGH-severity finding or vulnerable dependency is caught on the PR that
